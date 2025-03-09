@@ -182,7 +182,11 @@ export class Wolf {
   /**
    * Update wolf behavior and animations
    */
-  public update(playerPosition: THREE.Vector3, currentTime: number): void {
+  public update(
+    playerPosition: THREE.Vector3,
+    currentTime: number,
+    knight: any,
+  ): void {
     const wolfData = this.mesh.userData as WolfUserData;
 
     // Handle death animation and respawn
@@ -194,7 +198,8 @@ export class Wolf {
     // Calculate distance to player
     const distanceToPlayer = this.mesh.position.distanceTo(playerPosition);
     const followDistance = 15; // Distance at which wolf starts following player
-    const minDistance = 3; // Minimum distance wolf keeps from player
+    const minDistance = 2; // Minimum distance wolf keeps from player
+    const attackDistance = 2.5; // Distance at which wolf can attack player
 
     // Determine if wolf should follow player or wander
     if (distanceToPlayer < followDistance) {
@@ -220,6 +225,11 @@ export class Wolf {
       } else {
         // If too close to player, stop moving
         wolfData.velocity.set(0, 0, 0);
+
+        // Attack player if close enough
+        if (distanceToPlayer < attackDistance) {
+          this.attackPlayer(knight, currentTime);
+        }
       }
 
       // Reset the change direction timer so it picks a new random direction
@@ -617,5 +627,50 @@ export class Wolf {
     this.healthBarSprite.visible = false;
 
     console.log("Wolf reset complete");
+  }
+
+  /**
+   * Attack the player
+   */
+  private attackPlayer(knight: any, currentTime: number): void {
+    // Check if enough time has passed since last attack (attack every 1.5 seconds)
+    const wolfData = this.mesh.userData as WolfUserData;
+    const attackCooldown = 1500; // 1.5 seconds
+
+    if (
+      !wolfData.lastAttackTime ||
+      currentTime - wolfData.lastAttackTime > attackCooldown
+    ) {
+      // Deal damage to player
+      const damage = 10; // Wolf deals 10 damage per attack
+      knight.takeDamage(damage, currentTime);
+
+      // Set last attack time
+      wolfData.lastAttackTime = currentTime;
+
+      // Perform attack animation
+      this.performAttackAnimation();
+    }
+  }
+
+  /**
+   * Perform attack animation
+   */
+  private performAttackAnimation(): void {
+    // Simple attack animation - wolf jumps forward slightly
+    const originalPosition = this.mesh.position.clone();
+    const forward = new THREE.Vector3(
+      -Math.sin(this.mesh.rotation.y),
+      0,
+      -Math.cos(this.mesh.rotation.y),
+    );
+
+    // Jump forward
+    this.mesh.position.add(forward.multiplyScalar(0.3));
+
+    // Return to original position after a short delay
+    setTimeout(() => {
+      this.mesh.position.copy(originalPosition);
+    }, 200);
   }
 }

@@ -7,6 +7,7 @@ import { CameraController } from "./controllers/CameraController";
 import { InputController } from "./controllers/InputController";
 import { KeyBindingUI } from "./controllers/KeyBindingUI";
 import { UIController } from "./controllers/UIController";
+import { KnightUserData } from "./models/types";
 import { Environment } from "./scenes/Environment";
 import { GameAPI } from "./services/GameAPI";
 
@@ -60,6 +61,9 @@ export class Game {
   private static readonly STORAGE_KEY_GOLD = "wow_game_gold";
   private static readonly STORAGE_KEY_EQUIPPED = "wow_game_equipped";
   private static readonly STORAGE_KEY_HAS_SWORD = "wow_game_has_sword";
+
+  // Game over flag
+  private isGameOver: boolean = false;
 
   constructor() {
     // Set global reference to this game instance
@@ -235,11 +239,12 @@ export class Game {
       this.loadGameState();
 
       // Set up sword if player doesn't have it
-      if (!this.hasSword) {
+      if (!playerData.inventory.includes("sword")) {
         this.sword.mesh.position.set(5, 0, 5);
         this.sword.setVisibility(true);
       } else {
         // If sword is in the player's inventory
+        this.hasSword = true;
         this.sword.setVisibility(false);
       }
 
@@ -253,6 +258,9 @@ export class Game {
 
       // Set up camera
       this.cameraController.updateCamera();
+
+      // Create player health display
+      this.createHealthDisplay();
 
       // Update inventory display
       this.updateInventoryDisplay();
@@ -381,9 +389,24 @@ export class Game {
     // Update UI frame rate display
     this.uiController.updateFrameRate();
 
+    // Update player health display
+    this.updateHealthDisplay();
+
     // Skip game updates if key binding UI is open
     if (this.keyBindingUI.isOpen()) {
       // Just render the scene
+      this.renderer.render(this.scene, this.camera);
+      return;
+    }
+
+    // Check if player is dead
+    if (this.knight.getHealth() <= 0) {
+      // Show game over screen if not already showing
+      if (!this.isGameOver) {
+        this.showGameOverScreen();
+      }
+
+      // Still render the scene but don't update game logic
       this.renderer.render(this.scene, this.camera);
       return;
     }
@@ -408,7 +431,7 @@ export class Game {
 
       // Update wolf behavior
       const validTime = currentTime > 0 ? currentTime : Date.now();
-      this.wolf.update(this.knight.mesh.position, validTime);
+      this.wolf.update(this.knight.mesh.position, validTime, this.knight);
 
       // Update gold animations
       this.goldItems.forEach((gold) => gold.update());
@@ -651,5 +674,169 @@ export class Game {
         document.body.removeChild(notification);
       }, 1000);
     }, 50);
+  }
+
+  /**
+   * Show game over screen
+   */
+  private showGameOverScreen(): void {
+    this.isGameOver = true;
+
+    // Create game over container
+    const gameOverContainer = document.createElement("div");
+    gameOverContainer.id = "game-over-screen";
+    gameOverContainer.style.position = "fixed";
+    gameOverContainer.style.top = "0";
+    gameOverContainer.style.left = "0";
+    gameOverContainer.style.width = "100%";
+    gameOverContainer.style.height = "100%";
+    gameOverContainer.style.backgroundColor = "rgba(0, 0, 0, 0.8)";
+    gameOverContainer.style.display = "flex";
+    gameOverContainer.style.flexDirection = "column";
+    gameOverContainer.style.justifyContent = "center";
+    gameOverContainer.style.alignItems = "center";
+    gameOverContainer.style.zIndex = "2000";
+
+    // Game over text
+    const gameOverText = document.createElement("h1");
+    gameOverText.textContent = "GAME OVER";
+    gameOverText.style.color = "#FF0000";
+    gameOverText.style.fontSize = "72px";
+    gameOverText.style.fontFamily = "Arial, sans-serif";
+    gameOverText.style.marginBottom = "30px";
+    gameOverText.style.textShadow = "0 0 10px #FF0000";
+
+    // Restart button
+    const restartButton = document.createElement("button");
+    restartButton.textContent = "RESTART GAME";
+    restartButton.style.padding = "15px 30px";
+    restartButton.style.fontSize = "24px";
+    restartButton.style.backgroundColor = "#333";
+    restartButton.style.color = "#FFF";
+    restartButton.style.border = "2px solid #FFF";
+    restartButton.style.borderRadius = "5px";
+    restartButton.style.cursor = "pointer";
+    restartButton.style.transition = "all 0.3s";
+
+    // Hover effect
+    restartButton.addEventListener("mouseover", () => {
+      restartButton.style.backgroundColor = "#555";
+    });
+
+    restartButton.addEventListener("mouseout", () => {
+      restartButton.style.backgroundColor = "#333";
+    });
+
+    // Restart game on click
+    restartButton.addEventListener("click", () => {
+      this.restartGame();
+    });
+
+    // Add elements to container
+    gameOverContainer.appendChild(gameOverText);
+    gameOverContainer.appendChild(restartButton);
+
+    // Add to document
+    document.body.appendChild(gameOverContainer);
+  }
+
+  /**
+   * Restart the game after game over
+   */
+  private restartGame(): void {
+    // Remove game over screen
+    const gameOverScreen = document.getElementById("game-over-screen");
+    if (gameOverScreen) {
+      document.body.removeChild(gameOverScreen);
+    }
+
+    // Reset game state
+    this.resetGame();
+
+    // Reset player health
+    const knightData = this.knight.mesh.userData as KnightUserData;
+    knightData.currentHealth = knightData.maxHealth;
+
+    // Reset game over flag
+    this.isGameOver = false;
+  }
+
+  /**
+   * Create player health display
+   */
+  private createHealthDisplay(): void {
+    // Create health bar container
+    const healthContainer = document.createElement("div");
+    healthContainer.id = "player-health";
+    healthContainer.style.position = "fixed";
+    healthContainer.style.top = "20px";
+    healthContainer.style.left = "20px";
+    healthContainer.style.width = "200px";
+    healthContainer.style.height = "30px";
+    healthContainer.style.backgroundColor = "rgba(0, 0, 0, 0.5)";
+    healthContainer.style.border = "2px solid #FFF";
+    healthContainer.style.borderRadius = "5px";
+    healthContainer.style.overflow = "hidden";
+    healthContainer.style.zIndex = "1000";
+
+    // Create health bar
+    const healthBar = document.createElement("div");
+    healthBar.id = "health-bar";
+    healthBar.style.width = "100%";
+    healthBar.style.height = "100%";
+    healthBar.style.backgroundColor = "#00CC00";
+    healthBar.style.transition = "width 0.3s";
+
+    // Create health text
+    const healthText = document.createElement("div");
+    healthText.id = "health-text";
+    healthText.style.position = "absolute";
+    healthText.style.top = "50%";
+    healthText.style.left = "50%";
+    healthText.style.transform = "translate(-50%, -50%)";
+    healthText.style.color = "#FFF";
+    healthText.style.fontFamily = "Arial, sans-serif";
+    healthText.style.fontWeight = "bold";
+    healthText.style.textShadow = "1px 1px 2px #000";
+    healthText.textContent = "100/100";
+
+    // Add elements to container
+    healthContainer.appendChild(healthBar);
+    healthContainer.appendChild(healthText);
+
+    // Add to document
+    document.body.appendChild(healthContainer);
+
+    // Update health display initially
+    this.updateHealthDisplay();
+  }
+
+  /**
+   * Update player health display
+   */
+  private updateHealthDisplay(): void {
+    const healthBar = document.getElementById("health-bar");
+    const healthText = document.getElementById("health-text");
+
+    if (healthBar && healthText) {
+      const currentHealth = this.knight.getHealth();
+      const maxHealth = 100;
+      const healthPercent = (currentHealth / maxHealth) * 100;
+
+      // Update health bar width
+      healthBar.style.width = `${healthPercent}%`;
+
+      // Update health text
+      healthText.textContent = `${currentHealth}/${maxHealth}`;
+
+      // Change color based on health percentage
+      if (healthPercent > 60) {
+        healthBar.style.backgroundColor = "#00CC00"; // Green
+      } else if (healthPercent > 30) {
+        healthBar.style.backgroundColor = "#CCCC00"; // Yellow
+      } else {
+        healthBar.style.backgroundColor = "#CC0000"; // Red
+      }
+    }
   }
 }

@@ -37,6 +37,10 @@ export interface KnightUserData {
   isAttacking: boolean;
   attackAnimationPhase: number;
   equippedWeapon: string | null;
+  maxHealth: number;
+  currentHealth: number;
+  lastDamageTime: number;
+  isShowingDamage: boolean;
   limbs?: {
     leftArm?: THREE.Mesh;
     rightArm?: THREE.Mesh;
@@ -60,6 +64,7 @@ export interface WolfUserData {
   deathTime: number;
   deathAnimationPhase: number;
   damageTextMesh?: THREE.Mesh | null;
+  lastAttackTime?: number;
 }
 
 export interface GoldUserData {

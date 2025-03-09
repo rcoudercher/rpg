@@ -7,6 +7,15 @@ export class Knight {
 
   constructor() {
     this.mesh = this.createKnight();
+
+    // Initialize health
+    this.mesh.userData = {
+      ...this.mesh.userData,
+      maxHealth: 100,
+      currentHealth: 100,
+      lastDamageTime: 0,
+      isShowingDamage: false,
+    } as KnightUserData;
   }
 
   private createKnight(): THREE.Group {
@@ -429,5 +438,111 @@ export class Knight {
         rightArm.rotation.z = 0;
       }
     }
+  }
+
+  /**
+   * Get the knight's current health
+   */
+  public getHealth(): number {
+    const knightData = this.mesh.userData as KnightUserData;
+    return knightData.currentHealth;
+  }
+
+  /**
+   * Take damage and update health
+   */
+  public takeDamage(amount: number, currentTime: number): void {
+    const knightData = this.mesh.userData as KnightUserData;
+
+    // Reduce health
+    knightData.currentHealth = Math.max(0, knightData.currentHealth - amount);
+
+    // Set damage animation state
+    knightData.lastDamageTime = currentTime;
+    knightData.isShowingDamage = true;
+
+    // Create a floating damage text
+    this.createDamageText(amount);
+
+    console.log(
+      `Knight took ${amount} damage! Health: ${knightData.currentHealth}`,
+    );
+  }
+
+  /**
+   * Create a floating damage text
+   */
+  private createDamageText(amount: number): void {
+    // Create a div element for the damage text
+    const damageText = document.createElement("div");
+    damageText.textContent = `-${amount}`;
+    damageText.style.position = "absolute";
+    damageText.style.color = "#FF0000"; // Bright red
+    damageText.style.fontWeight = "bold";
+    damageText.style.fontSize = "48px"; // Large text
+    damageText.style.fontFamily = "Arial, sans-serif";
+    damageText.style.textShadow = "3px 3px 5px black"; // Shadow
+    damageText.style.zIndex = "1000";
+    damageText.style.pointerEvents = "none"; // Don't block clicks
+    damageText.style.userSelect = "none"; // Prevent text selection
+    damageText.style.transform = "translate(-50%, -50%)"; // Center the text
+
+    // Add to document
+    document.body.appendChild(damageText);
+
+    // Initial position
+    this.updateDamageTextPosition(damageText, 2);
+
+    // Animate the damage text
+    let opacity = 1;
+    let offsetY = 0; // Offset from the knight's position
+    let scale = 1.0;
+
+    const animate = () => {
+      // Update position to follow knight with increasing height
+      offsetY += 0.05; // Gradually move upward relative to knight
+      this.updateDamageTextPosition(damageText, 2 + offsetY);
+
+      // Scale up slightly
+      scale += 0.01;
+      damageText.style.transform = `translate(-50%, -50%) scale(${scale})`;
+
+      // Fade out
+      opacity -= 0.015;
+      damageText.style.opacity = opacity.toString();
+
+      if (opacity > 0) {
+        requestAnimationFrame(animate);
+      } else {
+        // Remove from DOM when animation is complete
+        document.body.removeChild(damageText);
+      }
+    };
+
+    // Start animation
+    requestAnimationFrame(animate);
+  }
+
+  /**
+   * Update the position of a damage text element to follow the knight
+   */
+  private updateDamageTextPosition(
+    element: HTMLElement,
+    heightOffset: number,
+  ): void {
+    // Get knight position in screen coordinates
+    const worldPos = this.mesh.position.clone();
+    worldPos.y += heightOffset; // Position above the knight
+
+    // Convert to screen coordinates using the camera
+    const tempV = worldPos.clone();
+    tempV.project(window.gameInstance.camera);
+
+    const x = (tempV.x * 0.5 + 0.5) * window.innerWidth;
+    const y = (tempV.y * -0.5 + 0.5) * window.innerHeight;
+
+    // Position the damage text
+    element.style.left = `${x}px`;
+    element.style.top = `${y}px`;
   }
 }
