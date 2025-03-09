@@ -1,6 +1,6 @@
 # WoW Game
 
-A simple World of Warcraft / Elden Ring style prototype.
+A simple World of Warcraft / Elden Ring / Zelda style prototype.
 
 ## Development
 
