@@ -597,7 +597,19 @@ export class Wolf {
       followIndicator.visible = false;
     }
 
-    console.log("Wolf has been defeated!");
+    // Generate a random amount of gold between 1 and 10
+    const goldAmount = Math.floor(Math.random() * 10) + 1;
+
+    // Dispatch an event to notify the game that the wolf has died and should drop gold
+    const goldDropEvent = new CustomEvent("wolfDeath", {
+      detail: {
+        position: this.mesh.position.clone(),
+        goldAmount: goldAmount,
+      },
+    });
+    document.dispatchEvent(goldDropEvent);
+
+    console.log(`Wolf has been defeated! Dropped ${goldAmount} gold.`);
   }
 
   /**

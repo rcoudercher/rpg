@@ -6,6 +6,7 @@ export interface PlayerState {
   y: number;
   z: number;
   inventory: string[];
+  gold?: number;
 }
 
 export interface EnemyState {
@@ -20,6 +21,7 @@ export interface ItemState {
   x: number;
   y: number;
   z: number;
+  amount?: number;
 }
 
 export interface GameState {
@@ -57,6 +59,11 @@ export interface WolfUserData {
   isDead: boolean;
   deathTime: number;
   deathAnimationPhase: number;
+}
+
+export interface GoldUserData {
+  isGold: boolean;
+  amount: number;
 }
 
 export interface FlameUserData {

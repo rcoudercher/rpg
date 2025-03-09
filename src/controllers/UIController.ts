@@ -328,15 +328,17 @@ export class UIController {
   }
 
   /**
-   * Update inventory display with equip/unequip functionality
+   * Update inventory display
    */
   public updateInventoryDisplay(
     playerInventory: string[],
     equippedWeapon: string | null = null,
   ): void {
+    // Clear existing items
     this.inventoryItems.innerHTML = "";
 
     if (playerInventory.length === 0) {
+      // Show empty inventory message
       const emptyText = document.createElement("div");
       emptyText.textContent = "Your bag is empty";
       emptyText.style.fontStyle = "italic";
@@ -344,79 +346,127 @@ export class UIController {
       emptyText.style.textAlign = "center";
       emptyText.style.marginTop = "10px";
       this.inventoryItems.appendChild(emptyText);
-    } else {
-      playerInventory.forEach((item) => {
-        const itemElement = document.createElement("div");
-        itemElement.style.padding = "10px";
-        itemElement.style.margin = "8px 0";
-        itemElement.style.backgroundColor = "rgba(100, 100, 100, 0.5)";
-        itemElement.style.borderRadius = "5px";
-        itemElement.style.display = "flex";
-        itemElement.style.alignItems = "center";
-        itemElement.style.justifyContent = "space-between"; // Space between item info and button
-
-        // Item container (icon + name)
-        const itemInfoContainer = document.createElement("div");
-        itemInfoContainer.style.display = "flex";
-        itemInfoContainer.style.alignItems = "center";
-
-        // Item icon
-        const itemIcon = document.createElement("div");
-
-        if (item === "sword") {
-          itemIcon.textContent = "⚔️";
-
-          // Highlight if equipped
-          if (equippedWeapon === "sword") {
-            itemElement.style.borderLeft = "4px solid #ffcc00";
-            itemElement.style.backgroundColor = "rgba(120, 120, 100, 0.6)";
-          } else {
-            itemElement.style.borderLeft = "4px solid #888888";
-          }
-        }
-
-        itemIcon.style.marginRight = "12px";
-        itemIcon.style.fontSize = "22px";
-        itemIcon.style.width = "30px";
-        itemIcon.style.textAlign = "center";
-
-        // Item name
-        const itemName = document.createElement("div");
-        itemName.textContent = item.charAt(0).toUpperCase() + item.slice(1);
-        itemName.style.fontSize = "16px";
-
-        itemInfoContainer.appendChild(itemIcon);
-        itemInfoContainer.appendChild(itemName);
-        itemElement.appendChild(itemInfoContainer);
-
-        // Equip/Unequip button
-        const actionButton = document.createElement("button");
-
-        if (equippedWeapon === item) {
-          actionButton.textContent = "Unequip";
-          actionButton.style.backgroundColor = "#aa5555";
-        } else {
-          actionButton.textContent = "Equip";
-          actionButton.style.backgroundColor = "#55aa55";
-        }
-
-        actionButton.style.padding = "5px 10px";
-        actionButton.style.border = "none";
-        actionButton.style.borderRadius = "4px";
-        actionButton.style.color = "white";
-        actionButton.style.cursor = "pointer";
-        actionButton.style.fontSize = "12px";
-        actionButton.style.fontWeight = "bold";
-
-        // Store item data for event handler
-        actionButton.dataset.item = item;
-        actionButton.dataset.action =
-          equippedWeapon === item ? "unequip" : "equip";
-
-        itemElement.appendChild(actionButton);
-        this.inventoryItems.appendChild(itemElement);
-      });
+      return;
     }
+
+    // Add each inventory item
+    playerInventory.forEach((item) => {
+      // Check if this is a gold item (format: "gold: X")
+      if (item.startsWith("gold:")) {
+        const goldAmount = item.split(":")[1].trim();
+        this.addGoldItem(goldAmount);
+      } else {
+        this.addRegularItem(item, equippedWeapon === item);
+      }
+    });
+  }
+
+  /**
+   * Add a gold item to the inventory display
+   */
+  private addGoldItem(amount: string): void {
+    const itemElement = document.createElement("div");
+    itemElement.style.padding = "10px";
+    itemElement.style.margin = "8px 0";
+    itemElement.style.backgroundColor = "rgba(100, 100, 100, 0.5)";
+    itemElement.style.borderRadius = "5px";
+    itemElement.style.display = "flex";
+    itemElement.style.alignItems = "center";
+    itemElement.style.borderLeft = "4px solid #FFD700"; // Gold color border
+
+    // Gold icon
+    const goldIcon = document.createElement("div");
+    goldIcon.textContent = "🪙"; // Coin emoji
+    goldIcon.style.marginRight = "12px";
+    goldIcon.style.fontSize = "22px";
+    goldIcon.style.width = "30px";
+    goldIcon.style.textAlign = "center";
+    goldIcon.style.color = "#FFD700"; // Gold color
+
+    // Gold amount
+    const goldText = document.createElement("div");
+    goldText.textContent = `${amount} Gold`;
+    goldText.style.fontSize = "16px";
+    goldText.style.fontWeight = "bold";
+    goldText.style.color = "#FFD700"; // Gold color
+
+    itemElement.appendChild(goldIcon);
+    itemElement.appendChild(goldText);
+    this.inventoryItems.appendChild(itemElement);
+  }
+
+  /**
+   * Add a regular item to the inventory display
+   */
+  private addRegularItem(item: string, isEquipped: boolean): void {
+    const itemElement = document.createElement("div");
+    itemElement.style.padding = "10px";
+    itemElement.style.margin = "8px 0";
+    itemElement.style.backgroundColor = "rgba(100, 100, 100, 0.5)";
+    itemElement.style.borderRadius = "5px";
+    itemElement.style.display = "flex";
+    itemElement.style.alignItems = "center";
+    itemElement.style.justifyContent = "space-between"; // Space between item info and button
+
+    // Item container (icon + name)
+    const itemInfoContainer = document.createElement("div");
+    itemInfoContainer.style.display = "flex";
+    itemInfoContainer.style.alignItems = "center";
+
+    // Item icon
+    const itemIcon = document.createElement("div");
+
+    if (item === "sword") {
+      itemIcon.textContent = "⚔️";
+
+      // Highlight if equipped
+      if (isEquipped) {
+        itemElement.style.borderLeft = "4px solid #ffcc00";
+        itemElement.style.backgroundColor = "rgba(120, 120, 100, 0.6)";
+      } else {
+        itemElement.style.borderLeft = "4px solid #888888";
+      }
+    }
+
+    itemIcon.style.marginRight = "12px";
+    itemIcon.style.fontSize = "22px";
+    itemIcon.style.width = "30px";
+    itemIcon.style.textAlign = "center";
+
+    // Item name
+    const itemName = document.createElement("div");
+    itemName.textContent = item.charAt(0).toUpperCase() + item.slice(1);
+    itemName.style.fontSize = "16px";
+
+    itemInfoContainer.appendChild(itemIcon);
+    itemInfoContainer.appendChild(itemName);
+    itemElement.appendChild(itemInfoContainer);
+
+    // Equip/Unequip button
+    const actionButton = document.createElement("button");
+
+    if (isEquipped) {
+      actionButton.textContent = "Unequip";
+      actionButton.style.backgroundColor = "#aa5555";
+    } else {
+      actionButton.textContent = "Equip";
+      actionButton.style.backgroundColor = "#55aa55";
+    }
+
+    actionButton.style.padding = "5px 10px";
+    actionButton.style.border = "none";
+    actionButton.style.borderRadius = "4px";
+    actionButton.style.color = "white";
+    actionButton.style.cursor = "pointer";
+    actionButton.style.fontSize = "12px";
+    actionButton.style.fontWeight = "bold";
+
+    // Store item data for event handler
+    actionButton.dataset.item = item;
+    actionButton.dataset.action = isEquipped ? "unequip" : "equip";
+
+    itemElement.appendChild(actionButton);
+    this.inventoryItems.appendChild(itemElement);
   }
 
   /**

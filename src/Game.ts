@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { Gold } from "./components/Gold";
 import { Knight } from "./components/Knight";
 import { Sword } from "./components/Sword";
 import { Wolf } from "./components/Wolf";
@@ -8,6 +9,14 @@ import { KeyBindingUI } from "./controllers/KeyBindingUI";
 import { UIController } from "./controllers/UIController";
 import { Environment } from "./scenes/Environment";
 import { GameAPI } from "./services/GameAPI";
+
+// Define the custom event interface
+interface WolfDeathEvent extends CustomEvent {
+  detail: {
+    position: THREE.Vector3;
+    goldAmount: number;
+  };
+}
 
 export class Game {
   private scene: THREE.Scene;
@@ -35,6 +44,10 @@ export class Game {
   private lastFrameTime: number = 0;
 
   private equippedWeapon: string | null = null;
+
+  // Gold system
+  private goldItems: Gold[] = [];
+  private playerGold: number = 0;
 
   constructor() {
     // Initialize Three.js scene
@@ -141,15 +154,12 @@ export class Game {
       this.renderer.setSize(window.innerWidth, window.innerHeight);
     });
 
-    // Set up key binding button
-    const keyBindingsButton = this.uiController.getKeyBindingsButton();
-    keyBindingsButton.addEventListener("click", (e) => {
-      console.log("Key bindings button clicked!");
-      e.stopPropagation();
-      this.keyBindingUI.toggle();
+    // Handle inventory actions
+    this.uiController.setupInventoryActions((action, item) => {
+      this.handleInventoryAction(action, item);
     });
 
-    // Set up reset button
+    // Handle reset button
     const resetButton = this.uiController.getResetButton();
     if (resetButton) {
       resetButton.addEventListener("click", () => {
@@ -157,7 +167,20 @@ export class Game {
       });
     }
 
-    // Add keyboard attack binding
+    // Handle key binding button
+    const keyBindingsButton = this.uiController.getKeyBindingsButton();
+    keyBindingsButton.addEventListener("click", (e) => {
+      console.log("Key bindings button clicked!");
+      e.stopPropagation();
+      this.keyBindingUI.toggle();
+    });
+
+    // Handle FPS toggle
+    this.uiController.setupFPSToggle((limitFPS) => {
+      this.setTargetFPS(limitFPS ? 60 : 0);
+    });
+
+    // Handle keyboard input for attack and controls
     window.addEventListener("keydown", (e) => {
       // Check if the key pressed is bound to attack
       if (this.inputController.isActionPressed("attack")) {
@@ -170,41 +193,53 @@ export class Game {
       }
     });
 
-    // Set up FPS toggle button
-    this.uiController.setupFPSToggle((limitFPS) => {
-      if (limitFPS) {
-        this.setTargetFPS(60); // Limit to 60 FPS
-      } else {
-        this.setTargetFPS(0); // Uncap FPS (0 means no limit)
-      }
-    });
+    // Handle wolf death for gold drops
+    document.addEventListener("wolfDeath", ((event: WolfDeathEvent) => {
+      const { position, goldAmount } = event.detail;
+      this.dropGold(position, goldAmount);
+      console.log(`Wolf dropped ${goldAmount} gold at position:`, position);
+    }) as EventListener);
   }
 
   /**
-   * Initialize game state from server
+   * Initialize game state
    */
   private async initGameState(): Promise<void> {
     try {
+      // Initialize game state from server
       const playerData = await GameAPI.getPlayer();
 
-      // Start the player in the center of the ruins (on the platform)
-      if (playerData.x === 0 && playerData.z === 0) {
-        this.knight.mesh.position.set(0, 0.2, 0); // On the central platform (0.2 is the platform height)
+      // Set player position
+      this.knight.mesh.position.set(
+        playerData.x,
+        playerData.y || 0,
+        playerData.z,
+      );
+
+      // Set up sword if player doesn't have it
+      if (!playerData.inventory.includes("sword")) {
+        this.sword.mesh.position.set(5, 0, 5);
+        this.sword.setVisibility(true);
       } else {
-        this.knight.mesh.position.set(playerData.x, 0, playerData.z);
+        // If sword is in the player's inventory
+        this.hasSword = true;
+        this.sword.setVisibility(false);
       }
 
-      // Set initial camera position behind player
+      // Set up wolf
+      this.wolf.mesh.position.set(10, 0, 10);
+
+      // Set up camera
       this.cameraController.updateCamera();
 
-      if (playerData.inventory.includes("sword")) {
-        this.sword.setVisibility(false);
-        this.hasSword = true;
-      }
+      // Set up event listeners for wolf death to handle gold drops
+      document.addEventListener("wolfDeath", ((event: WolfDeathEvent) => {
+        const { position, goldAmount } = event.detail;
+        this.dropGold(position, goldAmount);
+      }) as EventListener);
 
-      // Initialize inventory display with data from server
-      this.uiController.updateInventoryDisplay(playerData.inventory);
-      this.uiController.updateWolfStatus(false);
+      // Update inventory display
+      this.updateInventoryDisplay();
     } catch (error) {
       console.error("Error initializing game state:", error);
     }
@@ -242,28 +277,24 @@ export class Game {
   }
 
   /**
-   * Animation loop
+   * Update method called on each animation frame
    */
   private animate(currentTime: number = 0): void {
-    if (!this.isAnimating) return;
-
-    // Request next frame immediately
+    // Request next frame
     requestAnimationFrame((time) => this.animate(time));
 
-    // Calculate elapsed time since last frame
-    const elapsed = currentTime - this.lastFrameTime;
+    // Calculate time delta
+    const deltaTime = currentTime - this.lastFrameTime;
 
-    // If frame rate is limited (targetFPS > 0), only render if enough time has passed
-    if (this.targetFPS > 0 && elapsed < this.frameInterval) return;
-
-    // Update last frame time, accounting for the elapsed time if frame rate is limited
-    if (this.targetFPS > 0) {
-      this.lastFrameTime = currentTime - (elapsed % this.frameInterval);
-    } else {
-      this.lastFrameTime = currentTime;
+    // Limit frame rate if needed
+    if (deltaTime < this.frameInterval) {
+      return;
     }
 
-    // Update frame rate display
+    // Update last frame time
+    this.lastFrameTime = currentTime;
+
+    // Update UI frame rate display
     this.uiController.updateFrameRate();
 
     // Skip game updates if key binding UI is open
@@ -273,65 +304,51 @@ export class Game {
       return;
     }
 
-    // Get current time for animations
-    const animationTime = Date.now();
+    if (this.isAnimating) {
+      // Get mouse movement for camera rotation
+      const mouseMovement = this.inputController.getMouseMovement();
 
-    // Get mouse movement for camera rotation
-    const mouseMovement = this.inputController.getMouseMovement();
+      // Update camera with mouse movement
+      this.cameraController.updateCamera(mouseMovement);
 
-    // Update camera with mouse movement
-    this.cameraController.updateCamera(mouseMovement);
-
-    // Handle player movement
-    let isMoving = false;
-    isMoving = this.inputController.handlePlayerMovement(
-      this.knight.mesh,
-      this.camera,
-      this.moveSpeed,
-    );
-
-    // Animate knight
-    this.knight.animate(isMoving);
-
-    // Update wolf behavior
-    this.wolf.update(this.knight.mesh.position, animationTime);
-
-    // Update environment animations
-    this.environment.updateEnvironment();
-
-    // Check for wolf proximity and update UI
-    const wolfData = this.wolf.mesh.userData;
-    if (wolfData && typeof wolfData.isFollowing === "boolean") {
-      this.uiController.updateWolfStatus(wolfData.isFollowing);
-    }
-
-    // Check for sword pickup
-    if (!this.hasSword && this.sword.mesh.visible) {
-      const distance = this.sword.mesh.position.distanceTo(
-        this.knight.mesh.position,
+      // Handle player movement
+      let isMoving = false;
+      isMoving = this.inputController.handlePlayerMovement(
+        this.knight.mesh,
+        this.camera,
+        this.moveSpeed,
       );
-      if (distance < 3) {
-        console.log(`Close to sword! Distance: ${distance.toFixed(2)}`);
-        this.pickupSword();
+
+      // Animate knight
+      this.knight.animate(isMoving);
+
+      // Update wolf behavior
+      this.wolf.update(this.knight.mesh.position, currentTime);
+
+      // Update gold animations
+      this.goldItems.forEach((gold) => gold.update());
+
+      // Check for gold collection
+      this.checkGoldCollection();
+
+      // Check if player is near the sword for pickup
+      if (!this.hasSword && this.sword.mesh.visible) {
+        const distanceToSword = this.knight.mesh.position.distanceTo(
+          this.sword.mesh.position,
+        );
+        if (distanceToSword < 2) {
+          this.pickupSword();
+        }
       }
-    }
 
-    // Render scene
-    this.renderer.render(this.scene, this.camera);
-  }
-
-  /**
-   * Update player position on server
-   */
-  private async updatePlayerPosition(): Promise<void> {
-    try {
-      await GameAPI.updatePlayerPosition(
-        this.knight.mesh.position.x,
-        this.knight.mesh.position.y,
-        this.knight.mesh.position.z,
+      // Check if player is near the wolf to show status
+      const distanceToWolf = this.knight.mesh.position.distanceTo(
+        this.wolf.mesh.position,
       );
-    } catch (error) {
-      console.error("Error updating player position:", error);
+      this.uiController.updateWolfStatus(distanceToWolf < 5);
+
+      // Render scene
+      this.renderer.render(this.scene, this.camera);
     }
   }
 
@@ -366,7 +383,7 @@ export class Game {
   }
 
   /**
-   * Handle inventory actions (equip/unequip)
+   * Handle inventory actions
    */
   private handleInventoryAction(action: string, item: string): void {
     if (action === "equip") {
@@ -402,8 +419,15 @@ export class Game {
    * Get player inventory
    */
   private getPlayerInventory(): string[] {
-    // For now, just return sword if it's been picked up
-    return this.hasSword ? ["sword"] : [];
+    // Return sword if it's been picked up
+    const inventory = this.hasSword ? ["sword"] : [];
+
+    // Add gold to inventory display
+    if (this.playerGold > 0) {
+      inventory.push(`gold: ${this.playerGold}`);
+    }
+
+    return inventory;
   }
 
   /**
@@ -428,5 +452,53 @@ export class Game {
   public setTargetFPS(fps: number): void {
     this.targetFPS = fps;
     this.frameInterval = 1000 / fps;
+  }
+
+  /**
+   * Drop gold at the specified position
+   */
+  private dropGold(position: THREE.Vector3, amount: number): void {
+    const gold = new Gold(position, amount);
+    this.scene.add(gold.mesh);
+    this.goldItems.push(gold);
+  }
+
+  /**
+   * Check if player is near any gold to collect it
+   */
+  private checkGoldCollection(): void {
+    const playerPosition = this.knight.mesh.position;
+
+    // Check each gold item
+    for (let i = this.goldItems.length - 1; i >= 0; i--) {
+      const gold = this.goldItems[i];
+      const distance = playerPosition.distanceTo(gold.mesh.position);
+
+      // If player is close enough, collect the gold
+      if (distance < 1.5) {
+        this.collectGold(i);
+      }
+    }
+  }
+
+  /**
+   * Collect gold at the specified index
+   */
+  private collectGold(index: number): void {
+    const gold = this.goldItems[index];
+
+    // Add gold to player's inventory
+    this.playerGold += gold.amount;
+
+    // Remove gold from scene
+    this.scene.remove(gold.mesh);
+
+    // Remove gold from array
+    this.goldItems.splice(index, 1);
+
+    // Update inventory display
+    this.updateInventoryDisplay();
+
+    console.log(`Collected ${gold.amount} gold. Total: ${this.playerGold}`);
   }
 }
