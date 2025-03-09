@@ -6,7 +6,7 @@ A simple World of Warcraft / Elden Ring / Zelda style prototype.
 
 ### Prerequisites
 
-- Node.js (v14 or higher)
+- Node.js (v22 or higher)
 - npm
 
 ### Installation
