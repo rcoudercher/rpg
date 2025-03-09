@@ -762,8 +762,9 @@ export class Game {
     const healthContainer = document.createElement("div");
     healthContainer.id = "player-health";
     healthContainer.style.position = "fixed";
-    healthContainer.style.top = "20px";
-    healthContainer.style.left = "20px";
+    healthContainer.style.bottom = "20px";
+    healthContainer.style.left = "50%";
+    healthContainer.style.transform = "translateX(-50%)";
     healthContainer.style.width = "200px";
     healthContainer.style.height = "30px";
     healthContainer.style.backgroundColor = "rgba(0, 0, 0, 0.5)";
