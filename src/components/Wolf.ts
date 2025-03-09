@@ -189,24 +189,6 @@ export class Wolf {
     rightEye.position.set(-0.2, 0.9, 1.35);
     wolfGroup.add(rightEye);
 
-    // Add a visual indicator for when wolf is following (initially invisible)
-    const indicatorGeometry = new THREE.SphereGeometry(0.3, 8, 8);
-    const indicatorMaterial = new THREE.MeshStandardMaterial({
-      color: 0x00ff00,
-      transparent: true,
-      opacity: 0.7,
-      emissive: 0x00ff00,
-      emissiveIntensity: 0.5,
-    });
-    const followIndicator = new THREE.Mesh(
-      indicatorGeometry,
-      indicatorMaterial,
-    );
-    followIndicator.position.set(0, 1.8, 0);
-    followIndicator.visible = false; // Initially invisible
-    followIndicator.name = "followIndicator";
-    wolfGroup.add(followIndicator);
-
     // Initialize wolf data
     wolfGroup.userData = {
       velocity: new THREE.Vector3(),
@@ -247,19 +229,9 @@ export class Wolf {
     const followDistance = 15; // Distance at which wolf starts following player
     const minDistance = 3; // Minimum distance wolf keeps from player
 
-    // Get reference to follow indicator
-    const followIndicator = this.mesh.getObjectByName(
-      "followIndicator",
-    ) as THREE.Mesh;
-
     // Determine if wolf should follow player or wander
     if (distanceToPlayer < followDistance) {
       // Follow player behavior
-
-      // Show follow indicator
-      if (followIndicator) {
-        followIndicator.visible = true;
-      }
       wolfData.isFollowing = true;
 
       // Calculate direction to player, but maintain minimum distance
@@ -288,11 +260,6 @@ export class Wolf {
       wolfData.changeDirectionTime = currentTime + 1000;
     } else {
       // Random wandering behavior (when not following player)
-
-      // Hide follow indicator
-      if (followIndicator) {
-        followIndicator.visible = false;
-      }
       wolfData.isFollowing = false;
 
       if (currentTime > wolfData.changeDirectionTime) {
@@ -315,9 +282,9 @@ export class Wolf {
           this.mesh.rotation.y = angle;
         }
 
-        // Set next direction change in 3-8 seconds
+        // Set a new change direction time (2-5 seconds)
         wolfData.changeDirectionTime =
-          currentTime + 3000 + Math.random() * 5000;
+          currentTime + 2000 + Math.random() * 3000;
       }
     }
 
@@ -363,13 +330,6 @@ export class Wolf {
     if (tail) {
       const wagSpeed = wolfData.isFollowing ? 3 : 2;
       tail.rotation.z = Math.sin(wolfData.legAnimationPhase * wagSpeed) * 0.2;
-    }
-
-    // Pulse the follow indicator when active
-    if (followIndicator && followIndicator.visible) {
-      followIndicator.scale.setScalar(
-        0.8 + Math.sin(currentTime * 0.005) * 0.2,
-      );
     }
 
     // Update health bar
@@ -583,12 +543,6 @@ export class Wolf {
     this.healthBarSprite.visible = false;
     this.damageText.visible = false;
 
-    // Hide follow indicator
-    const followIndicator = this.mesh.getObjectByName("followIndicator");
-    if (followIndicator) {
-      followIndicator.visible = false;
-    }
-
     // Generate a random amount of gold between 1 and 10
     const goldAmount = Math.floor(Math.random() * 10) + 1;
 
@@ -664,12 +618,6 @@ export class Wolf {
     this.updateHealthBar();
     this.healthBarSprite.visible = false;
     this.damageText.visible = false;
-
-    // Reset follow indicator
-    const followIndicator = this.mesh.getObjectByName("followIndicator");
-    if (followIndicator) {
-      followIndicator.visible = false;
-    }
 
     console.log("Wolf reset complete");
   }
