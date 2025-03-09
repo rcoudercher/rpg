@@ -2,14 +2,12 @@ export class UIController {
   private controlsGuide!: HTMLElement;
   private inventoryPanel!: HTMLElement;
   private inventoryItems!: HTMLElement;
-  private wolfStatusIndicator!: HTMLElement;
-  private wolfStatusText!: HTMLElement;
   private uiContainer!: HTMLElement;
   private keyBindingsButton!: HTMLElement;
   private debugMenu!: HTMLElement;
   private fpsDisplay!: HTMLElement;
   private frameRates: number[] = [];
-  private lastFrameTime: number = 0;
+  private lastFrameTime = 0;
 
   constructor() {
     this.createUI();
