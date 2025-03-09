@@ -241,6 +241,7 @@ export class Game {
       if (!playerData.inventory.includes("sword")) {
         this.sword.mesh.position.set(5, 0, 5);
         this.sword.setVisibility(true);
+        this.hasSword = false;
       } else {
         // If sword is in the player's inventory
         this.hasSword = true;
@@ -294,6 +295,13 @@ export class Game {
         console.log(
           `Loaded sword state: ${this.hasSword ? "has sword" : "no sword"}`,
         );
+
+        // Update sword visibility based on state
+        if (this.hasSword) {
+          this.sword.setVisibility(false);
+        } else {
+          this.sword.setVisibility(true);
+        }
       }
     } catch (error) {
       console.error("Error loading game state from local storage:", error);
@@ -408,6 +416,11 @@ export class Game {
       // Still render the scene but don't update game logic
       this.renderer.render(this.scene, this.camera);
       return;
+    }
+
+    // Ensure sword is invisible when in inventory
+    if (this.hasSword && this.sword.mesh.visible) {
+      this.sword.setVisibility(false);
     }
 
     if (this.isAnimating) {
