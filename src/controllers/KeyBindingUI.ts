@@ -167,8 +167,19 @@ export class KeyBindingUI {
         e.preventDefault();
         e.stopPropagation();
 
+        // Handle special keys
+        let keyValue = e.key;
+
+        // Map spacebar to "space" for consistency
+        if (keyValue === " ") {
+          keyValue = "space";
+        }
+
+        // Map other special keys if needed
+        // For example: Escape, Enter, etc.
+
         // Update the binding
-        this.keyBindingManager.updateBinding(this.currentlyBinding, e.key);
+        this.keyBindingManager.updateBinding(this.currentlyBinding, keyValue);
 
         // Update the UI
         this.updateBindingUI();
@@ -245,7 +256,27 @@ export class KeyBindingUI {
         `bind-${actionId}`,
       ) as HTMLButtonElement;
       if (button) {
-        button.textContent = key.toUpperCase();
+        // Format special keys for display
+        let displayKey = key.toUpperCase();
+
+        // Handle special keys
+        if (key === "space") {
+          displayKey = "SPACEBAR";
+        } else if (key === "arrowup") {
+          displayKey = "↑";
+        } else if (key === "arrowdown") {
+          displayKey = "↓";
+        } else if (key === "arrowleft") {
+          displayKey = "←";
+        } else if (key === "arrowright") {
+          displayKey = "→";
+        } else if (key === "escape") {
+          displayKey = "ESC";
+        } else if (key === "enter") {
+          displayKey = "ENTER";
+        }
+
+        button.textContent = displayKey;
       }
     });
   }
