@@ -1,5 +1,3 @@
-import * as THREE from 'three';
-
 /**
  * Creates a simple UI element
  */
@@ -10,32 +8,32 @@ export function createUIElement(
     position?: { top?: string; right?: string; bottom?: string; left?: string };
     styles?: Record<string, string>;
     parent?: HTMLElement;
-  }
+  },
 ): HTMLElement {
   const element = document.createElement(type);
-  
+
   if (options.text) {
     element.textContent = options.text;
   }
-  
-  element.style.position = 'absolute';
-  
+
+  element.style.position = "absolute";
+
   if (options.position) {
     if (options.position.top) element.style.top = options.position.top;
     if (options.position.right) element.style.right = options.position.right;
     if (options.position.bottom) element.style.bottom = options.position.bottom;
     if (options.position.left) element.style.left = options.position.left;
   }
-  
+
   if (options.styles) {
     Object.entries(options.styles).forEach(([key, value]) => {
       (element.style as any)[key] = value;
     });
   }
-  
+
   const parent = options.parent || document.body;
   parent.appendChild(element);
-  
+
   return element;
 }
 
@@ -64,12 +62,12 @@ export function random(min: number, max: number): number {
  * Converts degrees to radians
  */
 export function degToRad(degrees: number): number {
-  return degrees * Math.PI / 180;
+  return (degrees * Math.PI) / 180;
 }
 
 /**
  * Converts radians to degrees
  */
 export function radToDeg(radians: number): number {
-  return radians * 180 / Math.PI;
-} 
+  return (radians * 180) / Math.PI;
+}

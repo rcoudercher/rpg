@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+import * as THREE from "three";
 
 // Game state types
 export interface PlayerState {
@@ -86,4 +86,4 @@ export interface KeyBindingAction {
   label: string;
   description: string;
   defaultKey: string;
-} 
+}
