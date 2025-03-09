@@ -49,6 +49,11 @@ export class Game {
   private goldItems: Gold[] = [];
   private playerGold: number = 0;
 
+  // Local storage keys
+  private static readonly STORAGE_KEY_GOLD = "wow_game_gold";
+  private static readonly STORAGE_KEY_EQUIPPED = "wow_game_equipped";
+  private static readonly STORAGE_KEY_HAS_SWORD = "wow_game_has_sword";
+
   constructor() {
     // Initialize Three.js scene
     this.scene = new THREE.Scene();
@@ -216,14 +221,21 @@ export class Game {
         playerData.z,
       );
 
+      // Load saved state from local storage
+      this.loadGameState();
+
       // Set up sword if player doesn't have it
-      if (!playerData.inventory.includes("sword")) {
+      if (!this.hasSword) {
         this.sword.mesh.position.set(5, 0, 5);
         this.sword.setVisibility(true);
       } else {
         // If sword is in the player's inventory
-        this.hasSword = true;
         this.sword.setVisibility(false);
+      }
+
+      // Apply equipped weapon if any
+      if (this.equippedWeapon === "sword" && this.hasSword) {
+        this.knight.equipWeapon("sword");
       }
 
       // Set up wolf
@@ -232,16 +244,69 @@ export class Game {
       // Set up camera
       this.cameraController.updateCamera();
 
-      // Set up event listeners for wolf death to handle gold drops
-      document.addEventListener("wolfDeath", ((event: WolfDeathEvent) => {
-        const { position, goldAmount } = event.detail;
-        this.dropGold(position, goldAmount);
-      }) as EventListener);
-
       // Update inventory display
       this.updateInventoryDisplay();
     } catch (error) {
       console.error("Error initializing game state:", error);
+    }
+  }
+
+  /**
+   * Load game state from local storage
+   */
+  private loadGameState(): void {
+    try {
+      // Load gold
+      const savedGold = localStorage.getItem(Game.STORAGE_KEY_GOLD);
+      if (savedGold) {
+        this.playerGold = parseInt(savedGold, 10);
+        console.log(`Loaded ${this.playerGold} gold from local storage`);
+      }
+
+      // Load equipped weapon
+      const savedEquipped = localStorage.getItem(Game.STORAGE_KEY_EQUIPPED);
+      if (savedEquipped) {
+        this.equippedWeapon = savedEquipped;
+        console.log(`Loaded equipped weapon: ${this.equippedWeapon}`);
+      }
+
+      // Load sword state
+      const savedHasSword = localStorage.getItem(Game.STORAGE_KEY_HAS_SWORD);
+      if (savedHasSword) {
+        this.hasSword = savedHasSword === "true";
+        console.log(
+          `Loaded sword state: ${this.hasSword ? "has sword" : "no sword"}`,
+        );
+      }
+    } catch (error) {
+      console.error("Error loading game state from local storage:", error);
+    }
+  }
+
+  /**
+   * Save game state to local storage
+   */
+  private saveGameState(): void {
+    try {
+      // Save gold
+      localStorage.setItem(Game.STORAGE_KEY_GOLD, this.playerGold.toString());
+
+      // Save equipped weapon
+      if (this.equippedWeapon) {
+        localStorage.setItem(Game.STORAGE_KEY_EQUIPPED, this.equippedWeapon);
+      } else {
+        localStorage.removeItem(Game.STORAGE_KEY_EQUIPPED);
+      }
+
+      // Save sword state
+      localStorage.setItem(
+        Game.STORAGE_KEY_HAS_SWORD,
+        this.hasSword.toString(),
+      );
+
+      console.log("Game state saved to local storage");
+    } catch (error) {
+      console.error("Error saving game state to local storage:", error);
     }
   }
 
@@ -264,11 +329,20 @@ export class Game {
       this.equippedWeapon = null;
       this.knight.unequipWeapon();
 
+      // Reset gold
+      this.playerGold = 0;
+
       // Reset wolf position and health
       this.wolf.reset();
 
       // Update inventory display
       this.updateInventoryDisplay();
+
+      // Clear local storage
+      localStorage.removeItem(Game.STORAGE_KEY_GOLD);
+      localStorage.removeItem(Game.STORAGE_KEY_EQUIPPED);
+      localStorage.removeItem(Game.STORAGE_KEY_HAS_SWORD);
+      console.log("Local storage cleared");
 
       console.log("Game has been reset!");
     } catch (error) {
@@ -400,6 +474,9 @@ export class Game {
 
     // Update inventory display with equipped weapon
     this.updateInventoryDisplay();
+
+    // Save game state to local storage
+    this.saveGameState();
   }
 
   /**
@@ -443,6 +520,9 @@ export class Game {
 
       // Update inventory display with the updated inventory from server
       this.updateInventoryDisplay();
+
+      // Save game state to local storage
+      this.saveGameState();
     } catch (error) {
       console.error("Error picking up sword:", error);
     }
@@ -500,6 +580,9 @@ export class Game {
 
     // Update inventory display
     this.updateInventoryDisplay();
+
+    // Save game state to local storage
+    this.saveGameState();
 
     console.log(`Collected ${gold.amount} gold. Total: ${this.playerGold}`);
   }
