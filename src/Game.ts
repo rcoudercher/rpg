@@ -29,6 +29,13 @@ export class Game {
 
   private keyBindingUI: KeyBindingUI;
 
+  // Frame rate limiting
+  private targetFPS: number = 60;
+  private frameInterval: number = 1000 / 60; // 16.67ms for 60 FPS
+  private lastFrameTime: number = 0;
+
+  private equippedWeapon: string | null = null;
+
   constructor() {
     // Initialize Three.js scene
     this.scene = new THREE.Scene();
@@ -83,6 +90,11 @@ export class Game {
     this.uiController.updateInventoryDisplay([]);
     this.uiController.updateWolfStatus(false);
 
+    // Set up inventory actions
+    this.uiController.setupInventoryActions(
+      this.handleInventoryAction.bind(this),
+    );
+
     // Start animation loop
     this.animate();
   }
@@ -122,34 +134,48 @@ export class Game {
    * Set up event listeners
    */
   private setupEventListeners(): void {
-    // Window resize
+    // Handle window resize
     window.addEventListener("resize", () => {
       this.camera.aspect = window.innerWidth / window.innerHeight;
       this.camera.updateProjectionMatrix();
       this.renderer.setSize(window.innerWidth, window.innerHeight);
     });
 
-    // Reset button
+    // Set up key binding button
+    const keyBindingsButton = this.uiController.getKeyBindingsButton();
+    keyBindingsButton.addEventListener("click", (e) => {
+      console.log("Key bindings button clicked!");
+      e.stopPropagation();
+      this.keyBindingUI.toggle();
+    });
+
+    // Set up reset button
     const resetButton = this.uiController.getResetButton();
     if (resetButton) {
-      resetButton.addEventListener("click", () => this.resetGame());
-    }
-
-    // Key bindings button
-    const keyBindingsButton = this.uiController.getKeyBindingsButton();
-    if (keyBindingsButton) {
-      keyBindingsButton.addEventListener("click", (e) => {
-        console.log("Key bindings button clicked!");
-        e.stopPropagation();
-        this.keyBindingUI.toggle();
+      resetButton.addEventListener("click", () => {
+        this.resetGame();
       });
     }
 
-    // Toggle controls with key press
+    // Add keyboard attack binding
     window.addEventListener("keydown", (e) => {
+      // Check if the key pressed is bound to attack
+      if (this.inputController.isActionPressed("attack")) {
+        this.handleAttack();
+      }
+
       // Check if the key pressed is bound to toggleControls
       if (this.inputController.isActionPressed("toggleControls")) {
         this.uiController.toggleControlsGuide();
+      }
+    });
+
+    // Set up FPS toggle button
+    this.uiController.setupFPSToggle((limitFPS) => {
+      if (limitFPS) {
+        this.setTargetFPS(60); // Limit to 60 FPS
+      } else {
+        this.setTargetFPS(0); // Uncap FPS (0 means no limit)
       }
     });
   }
@@ -206,8 +232,12 @@ export class Game {
       // Reset wolf position
       this.wolf.reset();
 
+      // Reset equipped weapon
+      this.equippedWeapon = null;
+      this.knight.unequipWeapon();
+
       // Update inventory display
-      this.uiController.updateInventoryDisplay([]);
+      this.updateInventoryDisplay();
 
       console.log("Game has been reset!");
     } catch (error) {
@@ -218,10 +248,24 @@ export class Game {
   /**
    * Animation loop
    */
-  private animate(): void {
+  private animate(currentTime: number = 0): void {
     if (!this.isAnimating) return;
 
-    requestAnimationFrame(() => this.animate());
+    // Request next frame immediately
+    requestAnimationFrame((time) => this.animate(time));
+
+    // Calculate elapsed time since last frame
+    const elapsed = currentTime - this.lastFrameTime;
+
+    // If frame rate is limited (targetFPS > 0), only render if enough time has passed
+    if (this.targetFPS > 0 && elapsed < this.frameInterval) return;
+
+    // Update last frame time, accounting for the elapsed time if frame rate is limited
+    if (this.targetFPS > 0) {
+      this.lastFrameTime = currentTime - (elapsed % this.frameInterval);
+    } else {
+      this.lastFrameTime = currentTime;
+    }
 
     // Update frame rate display
     this.uiController.updateFrameRate();
@@ -234,7 +278,7 @@ export class Game {
     }
 
     // Get current time for animations
-    const currentTime = Date.now();
+    const animationTime = Date.now();
 
     // Get mouse movement for camera rotation
     const mouseMovement = this.inputController.getMouseMovement();
@@ -254,7 +298,7 @@ export class Game {
     this.knight.animate(isMoving);
 
     // Update wolf behavior
-    this.wolf.update(this.knight.mesh.position, currentTime);
+    this.wolf.update(this.knight.mesh.position, animationTime);
 
     // Update environment animations
     this.environment.updateEnvironment();
@@ -296,6 +340,58 @@ export class Game {
   }
 
   /**
+   * Handle attack action
+   */
+  private handleAttack(): void {
+    // Trigger knight attack animation
+    this.knight.attack();
+
+    // TODO: Add damage calculation and effects later
+    console.log(`Attack with ${this.equippedWeapon || "fists"}!`);
+  }
+
+  /**
+   * Handle inventory actions (equip/unequip)
+   */
+  private handleInventoryAction(action: string, item: string): void {
+    if (action === "equip") {
+      this.equippedWeapon = item;
+      this.knight.equipWeapon(item);
+      console.log(`Equipped ${item}`);
+    } else if (action === "unequip") {
+      this.equippedWeapon = null;
+      this.knight.unequipWeapon();
+      console.log(`Unequipped ${item}`);
+    }
+
+    // Update inventory display with equipped weapon
+    this.updateInventoryDisplay();
+  }
+
+  /**
+   * Update inventory display
+   */
+  private updateInventoryDisplay(): void {
+    try {
+      // Get inventory from game state
+      const inventory = this.getPlayerInventory();
+
+      // Update UI with inventory and equipped weapon
+      this.uiController.updateInventoryDisplay(inventory, this.equippedWeapon);
+    } catch (error) {
+      console.error("Error updating inventory display:", error);
+    }
+  }
+
+  /**
+   * Get player inventory
+   */
+  private getPlayerInventory(): string[] {
+    // For now, just return sword if it's been picked up
+    return this.hasSword ? ["sword"] : [];
+  }
+
+  /**
    * Pick up sword
    */
   private async pickupSword(): Promise<void> {
@@ -305,9 +401,17 @@ export class Game {
       this.hasSword = true;
 
       // Update inventory display with the updated inventory from server
-      this.uiController.updateInventoryDisplay(response.inventory);
+      this.updateInventoryDisplay();
     } catch (error) {
       console.error("Error picking up sword:", error);
     }
+  }
+
+  /**
+   * Set target frame rate
+   */
+  public setTargetFPS(fps: number): void {
+    this.targetFPS = fps;
+    this.frameInterval = 1000 / fps;
   }
 }

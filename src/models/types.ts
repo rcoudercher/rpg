@@ -32,6 +32,9 @@ export interface GameState {
 export interface KnightUserData {
   animationPhase: number;
   isWalking: boolean;
+  isAttacking: boolean;
+  attackAnimationPhase: number;
+  equippedWeapon: string | null;
   limbs?: {
     leftArm?: THREE.Mesh;
     rightArm?: THREE.Mesh;
@@ -77,6 +80,7 @@ export interface KeyBindings {
   moveLeft: string;
   moveRight: string;
   interact: string;
+  attack: string;
   toggleInventory: string;
   toggleControls: string;
 }

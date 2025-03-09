@@ -14,6 +14,7 @@ export class KeyBindingManager {
       moveLeft: "a",
       moveRight: "d",
       interact: "e",
+      attack: "space",
       toggleInventory: "i",
       toggleControls: "c",
     };
@@ -49,6 +50,12 @@ export class KeyBindingManager {
         label: "Interact",
         description: "Interact with objects and NPCs",
         defaultKey: this.defaultBindings.interact,
+      },
+      {
+        id: "attack",
+        label: "Attack",
+        description: "Attack with equipped weapon or fists",
+        defaultKey: this.defaultBindings.attack,
       },
       {
         id: "toggleInventory",

@@ -3,6 +3,7 @@ import { KnightUserData } from "../models/types";
 
 export class Knight {
   public mesh: THREE.Group;
+  private swordMesh: THREE.Mesh | null = null;
 
   constructor() {
     this.mesh = this.createKnight();
@@ -174,10 +175,13 @@ export class Knight {
     shield.position.set(-0.7, 1.0, 0.1);
     knightGroup.add(shield);
 
-    // Add animation properties
+    // Initialize knight data
     knightGroup.userData = {
       animationPhase: 0,
       isWalking: false,
+      isAttacking: false,
+      attackAnimationPhase: 0,
+      equippedWeapon: null,
     } as KnightUserData;
 
     // Position the knight
@@ -187,20 +191,31 @@ export class Knight {
   }
 
   /**
-   * Animate the knight based on movement
+   * Animate the knight based on movement and attack state
    */
   public animate(isMoving: boolean): void {
     const knightData = this.mesh.userData as KnightUserData;
 
-    // Update animation phase
-    if (isMoving) {
+    // Update animation phase for walking
+    if (isMoving && !knightData.isAttacking) {
       knightData.animationPhase += 0.15;
       knightData.isWalking = true;
-    } else {
-      // Gradually return to standing position
+    } else if (!isMoving && !knightData.isAttacking) {
+      // Gradually return to standing position if not attacking
       if (knightData.isWalking) {
         knightData.animationPhase = 0;
         knightData.isWalking = false;
+      }
+    }
+
+    // Update attack animation phase
+    if (knightData.isAttacking) {
+      knightData.attackAnimationPhase += 0.25; // Faster than walking animation
+
+      // Complete attack animation after one cycle
+      if (knightData.attackAnimationPhase >= Math.PI * 2) {
+        knightData.isAttacking = false;
+        knightData.attackAnimationPhase = 0;
       }
     }
 
@@ -225,8 +240,36 @@ export class Knight {
 
     // Only animate if we found all limbs
     if (leftLeg && rightLeg && leftArm && rightArm) {
-      if (isMoving) {
-        // Animate legs for walking
+      if (knightData.isAttacking) {
+        // Attack animation
+        if (knightData.equippedWeapon === "sword") {
+          // Sword attack animation - right arm swings in an arc
+          rightArm.rotation.x =
+            -Math.sin(knightData.attackAnimationPhase) * 1.5;
+          rightArm.rotation.z = Math.cos(knightData.attackAnimationPhase) * 0.5;
+
+          // Left arm stays relatively still during sword attack
+          leftArm.rotation.x = 0;
+          leftArm.rotation.z = 0;
+        } else {
+          // Fist attack animation - both arms punch forward alternately
+          const punchPhase = knightData.attackAnimationPhase;
+
+          // Right arm punches first
+          rightArm.rotation.x = -Math.max(0, Math.sin(punchPhase) * 1.2);
+
+          // Left arm punches second
+          leftArm.rotation.x = -Math.max(
+            0,
+            Math.sin(punchPhase - Math.PI) * 1.2,
+          );
+        }
+
+        // Legs stay in place during attack
+        leftLeg.rotation.x = 0;
+        rightLeg.rotation.x = 0;
+      } else if (isMoving) {
+        // Walking animation
         leftLeg.rotation.x = Math.sin(knightData.animationPhase) * 0.5;
         rightLeg.rotation.x =
           Math.sin(knightData.animationPhase + Math.PI) * 0.5;
@@ -235,14 +278,131 @@ export class Knight {
         leftArm.rotation.x =
           Math.sin(knightData.animationPhase + Math.PI) * 0.3;
         rightArm.rotation.x = Math.sin(knightData.animationPhase) * 0.3;
+
+        // Reset any rotation on z-axis
+        leftArm.rotation.z = 0;
+        rightArm.rotation.z = 0;
       } else {
         // Reset to standing position
         leftLeg.rotation.x = 0;
         rightLeg.rotation.x = 0;
         leftArm.rotation.x = 0;
         rightArm.rotation.x = 0;
+        leftArm.rotation.z = 0;
+        rightArm.rotation.z = 0;
       }
     }
+
+    // Update equipped weapon position if needed
+    this.updateEquippedWeapon();
+  }
+
+  /**
+   * Start attack animation
+   */
+  public attack(): void {
+    const knightData = this.mesh.userData as KnightUserData;
+    knightData.isAttacking = true;
+    knightData.attackAnimationPhase = 0;
+  }
+
+  /**
+   * Equip a weapon
+   */
+  public equipWeapon(weaponType: string): void {
+    const knightData = this.mesh.userData as KnightUserData;
+    knightData.equippedWeapon = weaponType;
+
+    // Create and attach weapon mesh if it's a sword
+    if (weaponType === "sword") {
+      this.createEquippedSword();
+    } else {
+      // Remove any equipped weapon mesh
+      this.removeEquippedWeapon();
+    }
+  }
+
+  /**
+   * Unequip current weapon
+   */
+  public unequipWeapon(): void {
+    const knightData = this.mesh.userData as KnightUserData;
+    knightData.equippedWeapon = null;
+    this.removeEquippedWeapon();
+  }
+
+  /**
+   * Create and attach a sword to the knight's hand
+   */
+  private createEquippedSword(): void {
+    // Remove any existing weapon first
+    this.removeEquippedWeapon();
+
+    // Find the right arm to attach the sword to
+    const rightArm = this.mesh.getObjectByName("rightArm") as THREE.Mesh;
+    if (!rightArm) return;
+
+    // Create sword
+    const swordMaterial = new THREE.MeshStandardMaterial({
+      color: 0xcccccc, // Silver
+      metalness: 0.9,
+      roughness: 0.2,
+    });
+
+    // Sword blade
+    const bladeGeometry = new THREE.BoxGeometry(0.08, 0.7, 0.02);
+    const blade = new THREE.Mesh(bladeGeometry, swordMaterial);
+    blade.position.y = 0.35; // Position at the end of the handle
+
+    // Sword handle
+    const handleMaterial = new THREE.MeshStandardMaterial({
+      color: 0x8b4513, // Brown
+      metalness: 0.1,
+      roughness: 0.8,
+    });
+    const handleGeometry = new THREE.BoxGeometry(0.06, 0.2, 0.06);
+    const handle = new THREE.Mesh(handleGeometry, handleMaterial);
+
+    // Sword guard
+    const guardGeometry = new THREE.BoxGeometry(0.2, 0.04, 0.04);
+    const guard = new THREE.Mesh(guardGeometry, swordMaterial);
+    guard.position.y = 0.1;
+
+    // Create sword group
+    const sword = new THREE.Group();
+    sword.add(blade);
+    sword.add(handle);
+    sword.add(guard);
+
+    // Position and rotate the sword relative to the arm
+    sword.position.set(0, 0, 0.2);
+    sword.rotation.x = Math.PI / 2; // Point forward
+
+    // Add sword to right arm
+    rightArm.add(sword);
+
+    // Store reference to the sword
+    this.swordMesh = sword as unknown as THREE.Mesh;
+  }
+
+  /**
+   * Remove any equipped weapon
+   */
+  private removeEquippedWeapon(): void {
+    if (this.swordMesh) {
+      const rightArm = this.mesh.getObjectByName("rightArm") as THREE.Mesh;
+      if (rightArm) {
+        rightArm.remove(this.swordMesh);
+      }
+      this.swordMesh = null;
+    }
+  }
+
+  /**
+   * Update equipped weapon position based on animation
+   */
+  private updateEquippedWeapon(): void {
+    // This method can be expanded to add special effects or adjust weapon position during animations
   }
 
   /**
@@ -250,17 +410,24 @@ export class Knight {
    */
   public resetAnimation(): void {
     const knightData = this.mesh.userData as KnightUserData;
+    knightData.animationPhase = 0;
+    knightData.isWalking = false;
+    knightData.isAttacking = false;
+    knightData.attackAnimationPhase = 0;
 
     if (knightData.limbs) {
-      const { leftLeg, rightLeg, leftArm, rightArm } = knightData.limbs;
+      const { leftArm, rightArm, leftLeg, rightLeg } = knightData.limbs;
 
       if (leftLeg) leftLeg.rotation.x = 0;
       if (rightLeg) rightLeg.rotation.x = 0;
-      if (leftArm) leftArm.rotation.x = 0;
-      if (rightArm) rightArm.rotation.x = 0;
+      if (leftArm) {
+        leftArm.rotation.x = 0;
+        leftArm.rotation.z = 0;
+      }
+      if (rightArm) {
+        rightArm.rotation.x = 0;
+        rightArm.rotation.z = 0;
+      }
     }
-
-    knightData.animationPhase = 0;
-    knightData.isWalking = false;
   }
 }

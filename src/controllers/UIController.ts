@@ -78,6 +78,9 @@ export class UIController {
         
         <div style="text-align: right; font-weight: bold;">Interact:</div>
         <div>Walk near objects</div>
+        
+        <div style="text-align: right; font-weight: bold;">Attack:</div>
+        <div>Spacebar</div>
       </div>
     `;
 
@@ -136,12 +139,19 @@ export class UIController {
     this.debugMenu.style.pointerEvents = "auto"; // Make it clickable
     this.debugMenu.style.zIndex = "1002"; // Ensure it's above the button
 
-    // Create debug menu content with FPS display
+    // Create debug menu content with FPS display and controls
     this.debugMenu.innerHTML = `
       <h3 style="margin-top: 0; color: #ffcc00; text-align: center;">Debug Menu</h3>
       <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center;">
         <div style="text-align: right; font-weight: bold;">FPS:</div>
         <div id="fps-display">0</div>
+        
+        <div style="text-align: right; font-weight: bold;">Frame Rate:</div>
+        <div>
+          <button id="fps-toggle" style="padding: 4px 8px; background-color: #555; color: white; border: none; border-radius: 4px; cursor: pointer;">
+            Limit to 60 FPS
+          </button>
+        </div>
       </div>
     `;
 
@@ -318,9 +328,12 @@ export class UIController {
   }
 
   /**
-   * Update inventory display
+   * Update inventory display with equip/unequip functionality
    */
-  public updateInventoryDisplay(playerInventory: string[]): void {
+  public updateInventoryDisplay(
+    playerInventory: string[],
+    equippedWeapon: string | null = null,
+  ): void {
     this.inventoryItems.innerHTML = "";
 
     if (playerInventory.length === 0) {
@@ -340,13 +353,26 @@ export class UIController {
         itemElement.style.borderRadius = "5px";
         itemElement.style.display = "flex";
         itemElement.style.alignItems = "center";
+        itemElement.style.justifyContent = "space-between"; // Space between item info and button
+
+        // Item container (icon + name)
+        const itemInfoContainer = document.createElement("div");
+        itemInfoContainer.style.display = "flex";
+        itemInfoContainer.style.alignItems = "center";
 
         // Item icon
         const itemIcon = document.createElement("div");
 
         if (item === "sword") {
           itemIcon.textContent = "⚔️";
-          itemElement.style.borderLeft = "4px solid #ffcc00";
+
+          // Highlight if equipped
+          if (equippedWeapon === "sword") {
+            itemElement.style.borderLeft = "4px solid #ffcc00";
+            itemElement.style.backgroundColor = "rgba(120, 120, 100, 0.6)";
+          } else {
+            itemElement.style.borderLeft = "4px solid #888888";
+          }
         }
 
         itemIcon.style.marginRight = "12px";
@@ -359,8 +385,35 @@ export class UIController {
         itemName.textContent = item.charAt(0).toUpperCase() + item.slice(1);
         itemName.style.fontSize = "16px";
 
-        itemElement.appendChild(itemIcon);
-        itemElement.appendChild(itemName);
+        itemInfoContainer.appendChild(itemIcon);
+        itemInfoContainer.appendChild(itemName);
+        itemElement.appendChild(itemInfoContainer);
+
+        // Equip/Unequip button
+        const actionButton = document.createElement("button");
+
+        if (equippedWeapon === item) {
+          actionButton.textContent = "Unequip";
+          actionButton.style.backgroundColor = "#aa5555";
+        } else {
+          actionButton.textContent = "Equip";
+          actionButton.style.backgroundColor = "#55aa55";
+        }
+
+        actionButton.style.padding = "5px 10px";
+        actionButton.style.border = "none";
+        actionButton.style.borderRadius = "4px";
+        actionButton.style.color = "white";
+        actionButton.style.cursor = "pointer";
+        actionButton.style.fontSize = "12px";
+        actionButton.style.fontWeight = "bold";
+
+        // Store item data for event handler
+        actionButton.dataset.item = item;
+        actionButton.dataset.action =
+          equippedWeapon === item ? "unequip" : "equip";
+
+        itemElement.appendChild(actionButton);
         this.inventoryItems.appendChild(itemElement);
       });
     }
@@ -447,5 +500,56 @@ export class UIController {
     }
 
     this.lastFrameTime = currentTime;
+  }
+
+  /**
+   * Set up FPS toggle button event listener
+   */
+  public setupFPSToggle(callback: (limitFPS: boolean) => void): void {
+    const fpsToggleButton = document.getElementById("fps-toggle");
+    if (fpsToggleButton) {
+      let isLimited = true; // Start with FPS limited to 60
+
+      fpsToggleButton.addEventListener("click", () => {
+        isLimited = !isLimited;
+        if (isLimited) {
+          fpsToggleButton.textContent = "Limit to 60 FPS";
+          fpsToggleButton.style.backgroundColor = "#555";
+          callback(true); // Limit to 60 FPS
+        } else {
+          fpsToggleButton.textContent = "Uncapped FPS";
+          fpsToggleButton.style.backgroundColor = "#773";
+          callback(false); // Uncap FPS
+        }
+      });
+
+      // Initialize with 60 FPS limit
+      callback(true);
+    }
+  }
+
+  /**
+   * Set up inventory action buttons (equip/unequip)
+   */
+  public setupInventoryActions(
+    callback: (action: string, item: string) => void,
+  ): void {
+    // Add event delegation to inventory container
+    this.inventoryItems.addEventListener("click", (e) => {
+      const target = e.target as HTMLElement;
+
+      // Check if a button was clicked
+      if (
+        target.tagName === "BUTTON" &&
+        target.dataset.item &&
+        target.dataset.action
+      ) {
+        const item = target.dataset.item;
+        const action = target.dataset.action;
+
+        // Call the callback with action and item
+        callback(action, item);
+      }
+    });
   }
 }

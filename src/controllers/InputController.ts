@@ -22,11 +22,27 @@ export class InputController {
   private setupEventListeners(): void {
     // Keyboard events
     window.addEventListener("keydown", (e) => {
-      this.keys[e.key.toLowerCase()] = true;
+      // Store the key in lowercase
+      const keyName = e.key.toLowerCase();
+
+      // Handle special keys
+      if (keyName === " ") {
+        this.keys["space"] = true;
+      } else {
+        this.keys[keyName] = true;
+      }
     });
 
     window.addEventListener("keyup", (e) => {
-      this.keys[e.key.toLowerCase()] = false;
+      // Store the key in lowercase
+      const keyName = e.key.toLowerCase();
+
+      // Handle special keys
+      if (keyName === " ") {
+        this.keys["space"] = false;
+      } else {
+        this.keys[keyName] = false;
+      }
     });
 
     // Mouse events for camera rotation
