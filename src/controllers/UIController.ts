@@ -26,7 +26,6 @@ export class UIController {
     this.createControlsGuide();
     this.createDebugMenu();
     this.createInventoryPanel();
-    this.createWolfStatusIndicator();
     this.createResetButton();
     this.createKeyBindingsButton();
   }
@@ -233,41 +232,6 @@ export class UIController {
   }
 
   /**
-   * Create wolf status indicator
-   */
-  private createWolfStatusIndicator(): void {
-    // Add wolf status indicator
-    this.wolfStatusIndicator = document.createElement("div");
-    this.wolfStatusIndicator.style.position = "absolute";
-    this.wolfStatusIndicator.style.top = "80px"; // Increased top margin for better spacing
-    this.wolfStatusIndicator.style.right = "20px"; // Aligned with the reset button
-    this.wolfStatusIndicator.style.padding = "10px";
-    this.wolfStatusIndicator.style.backgroundColor = "rgba(50, 50, 50, 0.7)";
-    this.wolfStatusIndicator.style.color = "white";
-    this.wolfStatusIndicator.style.borderRadius = "5px";
-    this.wolfStatusIndicator.style.fontFamily = "Arial, sans-serif";
-    this.wolfStatusIndicator.style.display = "flex";
-    this.wolfStatusIndicator.style.alignItems = "center";
-    this.wolfStatusIndicator.style.transition = "background-color 0.3s";
-    this.wolfStatusIndicator.style.pointerEvents = "auto"; // Make it clickable
-    this.wolfStatusIndicator.style.boxShadow = "0 0 10px rgba(0, 0, 0, 0.5)"; // Add shadow for better visibility
-
-    // Wolf icon
-    const wolfIcon = document.createElement("span");
-    wolfIcon.textContent = "🐺";
-    wolfIcon.style.fontSize = "20px";
-    wolfIcon.style.marginRight = "10px";
-    this.wolfStatusIndicator.appendChild(wolfIcon);
-
-    // Wolf status text
-    this.wolfStatusText = document.createElement("span");
-    this.wolfStatusText.textContent = "No wolf nearby";
-    this.wolfStatusIndicator.appendChild(this.wolfStatusText);
-
-    this.uiContainer.appendChild(this.wolfStatusIndicator);
-  }
-
-  /**
    * Create reset button
    */
   private createResetButton(): void {
@@ -467,22 +431,6 @@ export class UIController {
 
     itemElement.appendChild(actionButton);
     this.inventoryItems.appendChild(itemElement);
-  }
-
-  /**
-   * Update wolf status indicator
-   */
-  public updateWolfStatus(isNearby: boolean): void {
-    if (isNearby) {
-      this.wolfStatusText.textContent = "WOLF NEARBY!";
-      this.wolfStatusIndicator.style.backgroundColor = "#ff0000";
-      this.wolfStatusIndicator.style.boxShadow =
-        "0 0 20px rgba(255, 0, 0, 0.7)";
-    } else {
-      this.wolfStatusText.textContent = "No wolf nearby";
-      this.wolfStatusIndicator.style.backgroundColor = "#444444";
-      this.wolfStatusIndicator.style.boxShadow = "0 0 10px rgba(0, 0, 0, 0.5)";
-    }
   }
 
   /**

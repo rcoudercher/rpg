@@ -120,7 +120,6 @@ export class Game {
 
     // Initialize UI with empty inventory
     this.uiController.updateInventoryDisplay([]);
-    this.uiController.updateWolfStatus(false);
 
     // Set up inventory actions
     this.uiController.setupInventoryActions(
@@ -448,12 +447,6 @@ export class Game {
           this.pickupSword();
         }
       }
-
-      // Check if player is near the wolf to show status
-      const distanceToWolf = this.knight.mesh.position.distanceTo(
-        this.wolf.mesh.position,
-      );
-      this.uiController.updateWolfStatus(distanceToWolf < 5);
 
       // Render scene
       this.renderer.render(this.scene, this.camera);
