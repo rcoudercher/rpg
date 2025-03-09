@@ -376,7 +376,7 @@ export class UIController {
 
     // Gold icon
     const goldIcon = document.createElement("div");
-    goldIcon.textContent = "🪙"; // Coin emoji
+    goldIcon.textContent = "💰"; // Money bag icon
     goldIcon.style.marginRight = "12px";
     goldIcon.style.fontSize = "22px";
     goldIcon.style.width = "30px";

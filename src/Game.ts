@@ -584,6 +584,62 @@ export class Game {
     // Save game state to local storage
     this.saveGameState();
 
+    // Show gold collection notification
+    this.showGoldNotification(gold.amount);
+
     console.log(`Collected ${gold.amount} gold. Total: ${this.playerGold}`);
+  }
+
+  /**
+   * Show a notification when gold is collected
+   */
+  private showGoldNotification(amount: number): void {
+    // Create notification container
+    const notification = document.createElement("div");
+    notification.style.position = "absolute";
+    notification.style.top = "50%";
+    notification.style.left = "50%";
+    notification.style.transform = "translate(-50%, -50%)";
+    notification.style.display = "flex";
+    notification.style.alignItems = "center";
+    notification.style.justifyContent = "center";
+    notification.style.gap = "10px";
+    notification.style.pointerEvents = "none"; // Don't block clicks
+    notification.style.zIndex = "1000";
+    notification.style.opacity = "1";
+    notification.style.transition =
+      "opacity 1s ease-out, transform 1s ease-out";
+
+    // Create money bag icon
+    const coinIcon = document.createElement("div");
+    coinIcon.innerHTML = "💰"; // Money bag icon
+    coinIcon.style.fontSize = "36px";
+
+    // Create text element
+    const textElement = document.createElement("div");
+    textElement.textContent = `+${amount} Gold`;
+    textElement.style.color = "#FFD700"; // Gold color
+    textElement.style.fontFamily = "Arial, sans-serif";
+    textElement.style.fontSize = "32px";
+    textElement.style.fontWeight = "bold";
+    textElement.style.textShadow = "2px 2px 4px rgba(0, 0, 0, 0.7)";
+
+    // Add elements to notification
+    notification.appendChild(coinIcon);
+    notification.appendChild(textElement);
+
+    // Add to document
+    document.body.appendChild(notification);
+
+    // Animate and remove after animation
+    setTimeout(() => {
+      notification.style.opacity = "0";
+      notification.style.transform = "translate(-50%, -100%)";
+
+      // Remove from DOM after animation
+      setTimeout(() => {
+        document.body.removeChild(notification);
+      }, 1000);
+    }, 50);
   }
 }
