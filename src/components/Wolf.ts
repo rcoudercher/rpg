@@ -3,9 +3,104 @@ import { WolfUserData } from "../models/types";
 
 export class Wolf {
   public mesh: THREE.Group;
+  private healthBarSprite: THREE.Sprite;
+  private healthBarMaterial: THREE.SpriteMaterial;
+  private damageText: THREE.Sprite;
+  private damageTextMaterial: THREE.SpriteMaterial;
+  private initialPosition: THREE.Vector3;
+  private respawnDelay: number = 8000; // 8 seconds (5 seconds dead + 3 seconds for respawn)
 
   constructor() {
     this.mesh = this.createWolf();
+    this.initialPosition = new THREE.Vector3(10, 0, 10);
+
+    // Create health bar sprite
+    this.healthBarMaterial = this.createHealthBarMaterial(100, 100); // 100% health
+    this.healthBarSprite = new THREE.Sprite(this.healthBarMaterial);
+    this.healthBarSprite.scale.set(2, 0.3, 1);
+    this.healthBarSprite.position.set(0, 2.2, 0);
+    this.healthBarSprite.visible = false;
+    this.mesh.add(this.healthBarSprite);
+
+    // Create damage text sprite
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d");
+    canvas.width = 128;
+    canvas.height = 128;
+
+    if (context) {
+      context.font = "Bold 36px Arial";
+      context.fillStyle = "rgba(255, 0, 0, 0.9)";
+      context.strokeStyle = "rgba(0, 0, 0, 0.8)";
+      context.lineWidth = 4;
+      context.textAlign = "center";
+      context.textBaseline = "middle";
+      context.strokeText("-20", 64, 64);
+      context.fillText("-20", 64, 64);
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    this.damageTextMaterial = new THREE.SpriteMaterial({
+      map: texture,
+      transparent: true,
+      depthTest: false,
+      sizeAttenuation: false,
+    });
+
+    this.damageText = new THREE.Sprite(this.damageTextMaterial);
+    this.damageText.scale.set(0.5, 0.5, 0.5);
+    this.damageText.position.set(0, 2.5, 0);
+    this.damageText.visible = false;
+    this.mesh.add(this.damageText);
+  }
+
+  /**
+   * Create a canvas-based health bar material
+   */
+  private createHealthBarMaterial(
+    current: number,
+    max: number,
+  ): THREE.SpriteMaterial {
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d");
+    canvas.width = 100;
+    canvas.height = 20;
+
+    if (context) {
+      // Calculate health percentage
+      const healthPercent = current / max;
+
+      // Draw background
+      context.fillStyle = "rgba(0, 0, 0, 0.7)";
+      context.fillRect(0, 0, 100, 20);
+
+      // Determine color based on health percentage
+      let fillColor;
+      if (healthPercent > 0.6) {
+        fillColor = "#00ff00"; // Green for high health
+      } else if (healthPercent > 0.3) {
+        fillColor = "#ffff00"; // Yellow for medium health
+      } else {
+        fillColor = "#ff0000"; // Red for low health
+      }
+
+      // Draw health bar fill
+      context.fillStyle = fillColor;
+      context.fillRect(2, 2, Math.max(0, 96 * healthPercent), 16);
+
+      // Draw border
+      context.strokeStyle = "white";
+      context.lineWidth = 2;
+      context.strokeRect(1, 1, 98, 18);
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    return new THREE.SpriteMaterial({
+      map: texture,
+      transparent: true,
+      depthTest: false,
+      sizeAttenuation: true,
+    });
   }
 
   private createWolf(): THREE.Group {
@@ -112,27 +207,40 @@ export class Wolf {
     followIndicator.name = "followIndicator";
     wolfGroup.add(followIndicator);
 
-    // Position the wolf
-    wolfGroup.position.set(10, 0, 0);
-
-    // Add wandering properties
+    // Initialize wolf data
     wolfGroup.userData = {
-      velocity: new THREE.Vector3(0, 0, 0),
-      targetPosition: new THREE.Vector3(10, 0, 0),
-      speed: 0.03,
+      velocity: new THREE.Vector3(),
+      targetPosition: new THREE.Vector3(),
+      speed: 0.05,
       changeDirectionTime: 0,
       legAnimationPhase: 0,
       isFollowing: false,
+      maxHealth: 100,
+      currentHealth: 100,
+      lastDamageTime: 0,
+      isShowingDamage: false,
+      isDead: false,
+      deathTime: 0,
+      deathAnimationPhase: 0,
     } as WolfUserData;
+
+    // Position the wolf
+    wolfGroup.position.set(10, 0, 10);
 
     return wolfGroup;
   }
 
   /**
-   * Update wolf movement and animation
+   * Update wolf behavior and animations
    */
   public update(playerPosition: THREE.Vector3, currentTime: number): void {
     const wolfData = this.mesh.userData as WolfUserData;
+
+    // Handle death animation and respawn
+    if (wolfData.isDead) {
+      this.updateDeathAnimation(currentTime);
+      return; // Skip normal updates if dead
+    }
 
     // Calculate distance to player
     const distanceToPlayer = this.mesh.position.distanceTo(playerPosition);
@@ -263,25 +371,292 @@ export class Wolf {
         0.8 + Math.sin(currentTime * 0.005) * 0.2,
       );
     }
+
+    // Update health bar
+    this.updateHealthBar();
+
+    // Update damage text animation
+    if (wolfData.isShowingDamage) {
+      const damageElapsed = currentTime - wolfData.lastDamageTime;
+
+      // Move damage text upward
+      this.damageText.position.y = 2.5 + damageElapsed * 0.002;
+
+      // Fade out damage text
+      const opacity = 1 - damageElapsed / 1000;
+      if (opacity > 0) {
+        this.damageTextMaterial.opacity = opacity;
+      } else {
+        // Hide damage text after animation completes
+        this.damageText.visible = false;
+        wolfData.isShowingDamage = false;
+      }
+    }
   }
 
   /**
-   * Reset the wolf to its initial state
+   * Update death animation
    */
-  public reset(): void {
-    this.mesh.position.set(10, 0, 0);
-    this.mesh.rotation.y = 0;
+  private updateDeathAnimation(currentTime: number): void {
+    const wolfData = this.mesh.userData as WolfUserData;
+    const timeSinceDeath = currentTime - wolfData.deathTime;
 
+    // Death animation phase (0-1 seconds): Wolf collapses to the ground
+    if (timeSinceDeath < 1000) {
+      const collapseProgress = Math.min(1, timeSinceDeath / 1000);
+
+      // Rotate the wolf to fall on its side
+      this.mesh.rotation.z = (collapseProgress * Math.PI) / 2;
+
+      // Lower the wolf's body
+      const body = this.mesh.children.find(
+        (child) =>
+          child instanceof THREE.Mesh &&
+          (child.geometry as THREE.BoxGeometry).parameters.width === 1.5,
+      );
+
+      if (body) {
+        body.position.y = 0.5 * (1 - collapseProgress);
+      }
+    }
+
+    // Disappear phase (5-6 seconds): Wolf fades out
+    if (timeSinceDeath > 5000 && timeSinceDeath < 6000) {
+      const fadeOutProgress = (timeSinceDeath - 5000) / 1000;
+
+      // Make all wolf parts transparent
+      this.mesh.traverse((child) => {
+        if (child instanceof THREE.Mesh && child.material) {
+          const material = child.material as THREE.Material;
+          if (material.transparent !== undefined) {
+            material.transparent = true;
+            material.opacity = 1 - fadeOutProgress;
+            material.needsUpdate = true;
+          }
+        }
+      });
+    }
+
+    // Respawn phase (after 8 seconds): Spawn a new wolf
+    if (timeSinceDeath > this.respawnDelay) {
+      this.respawn();
+    }
+  }
+
+  /**
+   * Respawn the wolf
+   */
+  private respawn(): void {
+    // Reset wolf position to a new random location
+    const randomAngle = Math.random() * Math.PI * 2;
+    const randomDistance = 15 + Math.random() * 10; // Between 15-25 units away
+    const newX = Math.cos(randomAngle) * randomDistance;
+    const newZ = Math.sin(randomAngle) * randomDistance;
+
+    this.mesh.position.set(newX, 0, newZ);
+    this.mesh.rotation.set(0, 0, 0);
+
+    // Reset all mesh materials to be fully opaque
+    this.mesh.traverse((child) => {
+      if (child instanceof THREE.Mesh && child.material) {
+        const material = child.material as THREE.Material;
+        if (material.opacity !== undefined) {
+          material.opacity = 1;
+          material.transparent = false;
+          material.needsUpdate = true;
+        }
+      }
+    });
+
+    // Reset body position if it was moved
+    const body = this.mesh.children.find(
+      (child) =>
+        child instanceof THREE.Mesh &&
+        (child.geometry as THREE.BoxGeometry).parameters.width === 1.5,
+    );
+
+    if (body) {
+      body.position.y = 0.5;
+    }
+
+    // Reset wolf data
     const wolfData = this.mesh.userData as WolfUserData;
     wolfData.velocity.set(0, 0, 0);
-    wolfData.targetPosition.set(10, 0, 0);
+    wolfData.targetPosition.set(newX, 0, newZ);
     wolfData.changeDirectionTime = 0;
     wolfData.isFollowing = false;
+    wolfData.currentHealth = wolfData.maxHealth;
+    wolfData.isShowingDamage = false;
+    wolfData.isDead = false;
+    wolfData.deathTime = 0;
+    wolfData.deathAnimationPhase = 0;
+
+    // Hide health bar and damage text
+    this.healthBarSprite.visible = false;
+    this.damageText.visible = false;
 
     // Hide follow indicator
-    const followIndicator = this.mesh.getObjectByName(
-      "followIndicator",
-    ) as THREE.Mesh;
+    const followIndicator = this.mesh.getObjectByName("followIndicator");
+    if (followIndicator) {
+      followIndicator.visible = false;
+    }
+
+    console.log("A new wolf has appeared!");
+  }
+
+  /**
+   * Update the health bar based on current health
+   */
+  private updateHealthBar(): void {
+    const wolfData = this.mesh.userData as WolfUserData;
+
+    // Update health bar material with current health
+    this.healthBarMaterial = this.createHealthBarMaterial(
+      wolfData.currentHealth,
+      wolfData.maxHealth,
+    );
+
+    // Apply the new material to the sprite
+    this.healthBarSprite.material = this.healthBarMaterial;
+
+    // Show health bar if wolf has taken damage
+    if (wolfData.currentHealth < wolfData.maxHealth) {
+      this.healthBarSprite.visible = true;
+    }
+  }
+
+  /**
+   * Apply damage to the wolf
+   */
+  public takeDamage(amount: number, currentTime: number): void {
+    const wolfData = this.mesh.userData as WolfUserData;
+
+    // Skip if already dead
+    if (wolfData.isDead) return;
+
+    // Reduce health
+    wolfData.currentHealth = Math.max(0, wolfData.currentHealth - amount);
+
+    // Show health bar
+    this.healthBarSprite.visible = true;
+
+    // Update health bar
+    this.updateHealthBar();
+
+    // Update damage text
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d");
+    canvas.width = 128;
+    canvas.height = 128;
+
+    if (context) {
+      context.font = "Bold 36px Arial";
+      context.fillStyle = "rgba(255, 0, 0, 0.9)";
+      context.strokeStyle = "rgba(0, 0, 0, 0.8)";
+      context.lineWidth = 4;
+      context.textAlign = "center";
+      context.textBaseline = "middle";
+      context.strokeText(`-${amount}`, 64, 64);
+      context.fillText(`-${amount}`, 64, 64);
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    this.damageTextMaterial.map = texture;
+    this.damageTextMaterial.needsUpdate = true;
+
+    // Show damage text
+    this.damageText.visible = true;
+    this.damageText.position.y = 2.5;
+    this.damageTextMaterial.opacity = 1;
+
+    // Set damage animation state
+    wolfData.lastDamageTime = currentTime;
+    wolfData.isShowingDamage = true;
+
+    // Check if wolf is dead
+    if (wolfData.currentHealth <= 0 && !wolfData.isDead) {
+      this.die(currentTime);
+    }
+  }
+
+  /**
+   * Start death sequence
+   */
+  private die(currentTime: number): void {
+    const wolfData = this.mesh.userData as WolfUserData;
+    wolfData.isDead = true;
+    wolfData.deathTime = currentTime;
+
+    // Hide health bar and damage text
+    this.healthBarSprite.visible = false;
+    this.damageText.visible = false;
+
+    // Hide follow indicator
+    const followIndicator = this.mesh.getObjectByName("followIndicator");
+    if (followIndicator) {
+      followIndicator.visible = false;
+    }
+
+    console.log("Wolf has been defeated!");
+  }
+
+  /**
+   * Check if the wolf is dead
+   */
+  public isDead(): boolean {
+    const wolfData = this.mesh.userData as WolfUserData;
+    return wolfData.isDead || wolfData.currentHealth <= 0;
+  }
+
+  /**
+   * Reset the wolf's position and state
+   */
+  public reset(): void {
+    // Reset position
+    this.mesh.position.copy(this.initialPosition);
+    this.mesh.rotation.set(0, 0, 0);
+
+    // Reset all mesh materials to be fully opaque
+    this.mesh.traverse((child) => {
+      if (child instanceof THREE.Mesh && child.material) {
+        const material = child.material as THREE.Material;
+        if (material.opacity !== undefined) {
+          material.opacity = 1;
+          material.transparent = false;
+          material.needsUpdate = true;
+        }
+      }
+    });
+
+    // Reset body position if it was moved
+    const body = this.mesh.children.find(
+      (child) =>
+        child instanceof THREE.Mesh &&
+        (child.geometry as THREE.BoxGeometry).parameters.width === 1.5,
+    );
+
+    if (body) {
+      body.position.y = 0.5;
+    }
+
+    // Reset wolf data
+    const wolfData = this.mesh.userData as WolfUserData;
+    wolfData.velocity.set(0, 0, 0);
+    wolfData.targetPosition.copy(this.initialPosition);
+    wolfData.changeDirectionTime = 0;
+    wolfData.isFollowing = false;
+    wolfData.currentHealth = wolfData.maxHealth;
+    wolfData.isShowingDamage = false;
+    wolfData.isDead = false;
+    wolfData.deathTime = 0;
+    wolfData.deathAnimationPhase = 0;
+
+    // Hide health bar and damage text
+    this.healthBarSprite.visible = false;
+    this.damageText.visible = false;
+
+    // Hide follow indicator
+    const followIndicator = this.mesh.getObjectByName("followIndicator");
     if (followIndicator) {
       followIndicator.visible = false;
     }

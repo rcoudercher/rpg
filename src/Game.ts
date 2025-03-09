@@ -211,30 +211,26 @@ export class Game {
   }
 
   /**
-   * Reset game state
+   * Reset game
    */
   private async resetGame(): Promise<void> {
     try {
-      const response = await GameAPI.resetGame();
-      console.log("Game reset:", response);
+      // Reset game state on server
+      await GameAPI.resetGame();
 
-      // Reset player position and rotation - place on the central platform
-      this.knight.mesh.position.set(0, 1, 0);
-      this.knight.mesh.rotation.y = 0;
-
-      // Reset player animation
-      this.knight.resetAnimation();
+      // Reset player position
+      this.knight.mesh.position.set(0, 0, 0);
 
       // Reset sword
       this.sword.setVisibility(true);
       this.hasSword = false;
 
-      // Reset wolf position
-      this.wolf.reset();
-
       // Reset equipped weapon
       this.equippedWeapon = null;
       this.knight.unequipWeapon();
+
+      // Reset wolf position and health
+      this.wolf.reset();
 
       // Update inventory display
       this.updateInventoryDisplay();
@@ -346,8 +342,27 @@ export class Game {
     // Trigger knight attack animation
     this.knight.attack();
 
-    // TODO: Add damage calculation and effects later
-    console.log(`Attack with ${this.equippedWeapon || "fists"}!`);
+    // Check if wolf is in attack range
+    const attackRange = 3; // 3 units range for attack
+    const distanceToWolf = this.knight.mesh.position.distanceTo(
+      this.wolf.mesh.position,
+    );
+
+    if (distanceToWolf <= attackRange) {
+      // Calculate damage based on equipped weapon
+      const damage = this.equippedWeapon === "sword" ? 20 : 5; // Sword: 20 damage, Fists: 5 damage
+
+      // Apply damage to wolf
+      this.wolf.takeDamage(damage, Date.now());
+
+      // Log the damage
+      const wolfHealth = (this.wolf.mesh.userData as any).currentHealth;
+      console.log(`Hit wolf for ${damage} damage! Wolf health: ${wolfHealth}`);
+    } else {
+      console.log(
+        `Attack missed! Wolf is ${distanceToWolf.toFixed(1)} units away.`,
+      );
+    }
   }
 
   /**

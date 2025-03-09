@@ -50,6 +50,13 @@ export interface WolfUserData {
   changeDirectionTime: number;
   legAnimationPhase: number;
   isFollowing: boolean;
+  maxHealth: number;
+  currentHealth: number;
+  lastDamageTime: number;
+  isShowingDamage: boolean;
+  isDead: boolean;
+  deathTime: number;
+  deathAnimationPhase: number;
 }
 
 export interface FlameUserData {
