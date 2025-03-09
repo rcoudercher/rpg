@@ -399,46 +399,56 @@ export class Wolf {
    */
   private updateDeathAnimation(currentTime: number): void {
     const wolfData = this.mesh.userData as WolfUserData;
+
+    // Make sure deathTime is set and valid
+    if (!wolfData.deathTime || wolfData.deathTime > currentTime) {
+      console.log("Invalid death time detected, resetting to current time");
+      wolfData.deathTime = currentTime;
+    }
+
     const timeSinceDeath = currentTime - wolfData.deathTime;
+
+    // Safety check for negative time (should never happen)
+    if (timeSinceDeath < 0) {
+      console.error("Negative time since death detected:", timeSinceDeath);
+      console.log(
+        "Current time:",
+        currentTime,
+        "Death time:",
+        wolfData.deathTime,
+      );
+      // Force respawn to fix the issue
+      this.respawn();
+      return;
+    }
+
+    console.log(
+      `Wolf death animation: ${Math.round(timeSinceDeath)}ms since death`,
+    );
 
     // Death animation phase (0-1 seconds): Wolf collapses to the ground
     if (timeSinceDeath < 1000) {
       const collapseProgress = Math.min(1, timeSinceDeath / 1000);
-
       // Rotate the wolf to fall on its side
       this.mesh.rotation.z = (collapseProgress * Math.PI) / 2;
-
-      // Lower the wolf's body
-      const body = this.mesh.children.find(
-        (child) =>
-          child instanceof THREE.Mesh &&
-          (child.geometry as THREE.BoxGeometry).parameters.width === 1.5,
-      );
-
-      if (body) {
-        body.position.y = 0.5 * (1 - collapseProgress);
-      }
     }
-
-    // Disappear phase (5-6 seconds): Wolf fades out
-    if (timeSinceDeath > 5000 && timeSinceDeath < 6000) {
-      const fadeOutProgress = (timeSinceDeath - 5000) / 1000;
+    // Disappear phase (2-3 seconds): Wolf fades out
+    else if (timeSinceDeath > 2000 && timeSinceDeath < 3000) {
+      const fadeOutProgress = (timeSinceDeath - 2000) / 1000;
 
       // Make all wolf parts transparent
       this.mesh.traverse((child) => {
         if (child instanceof THREE.Mesh && child.material) {
-          const material = child.material as THREE.Material;
-          if (material.transparent !== undefined) {
-            material.transparent = true;
-            material.opacity = 1 - fadeOutProgress;
-            material.needsUpdate = true;
-          }
+          const material = child.material as THREE.MeshStandardMaterial;
+          material.transparent = true;
+          material.opacity = 1 - fadeOutProgress;
+          material.needsUpdate = true;
         }
       });
     }
-
-    // Respawn phase (after 8 seconds): Spawn a new wolf
-    if (timeSinceDeath > this.respawnDelay) {
+    // Respawn phase (after 4 seconds): Spawn a new wolf
+    else if (timeSinceDeath > 4000) {
+      console.log("Respawning wolf after death animation");
       this.respawn();
     }
   }
@@ -447,61 +457,21 @@ export class Wolf {
    * Respawn the wolf
    */
   private respawn(): void {
-    // Reset wolf position to a new random location
+    console.log("Wolf respawn function called");
+
+    // Generate a new random position
     const randomAngle = Math.random() * Math.PI * 2;
     const randomDistance = 15 + Math.random() * 10; // Between 15-25 units away
     const newX = Math.cos(randomAngle) * randomDistance;
     const newZ = Math.sin(randomAngle) * randomDistance;
 
+    // Set new position
     this.mesh.position.set(newX, 0, newZ);
-    this.mesh.rotation.set(0, 0, 0);
 
-    // Reset all mesh materials to be fully opaque
-    this.mesh.traverse((child) => {
-      if (child instanceof THREE.Mesh && child.material) {
-        const material = child.material as THREE.Material;
-        if (material.opacity !== undefined) {
-          material.opacity = 1;
-          material.transparent = false;
-          material.needsUpdate = true;
-        }
-      }
-    });
+    // Reset all wolf properties
+    this.reset();
 
-    // Reset body position if it was moved
-    const body = this.mesh.children.find(
-      (child) =>
-        child instanceof THREE.Mesh &&
-        (child.geometry as THREE.BoxGeometry).parameters.width === 1.5,
-    );
-
-    if (body) {
-      body.position.y = 0.5;
-    }
-
-    // Reset wolf data
-    const wolfData = this.mesh.userData as WolfUserData;
-    wolfData.velocity.set(0, 0, 0);
-    wolfData.targetPosition.set(newX, 0, newZ);
-    wolfData.changeDirectionTime = 0;
-    wolfData.isFollowing = false;
-    wolfData.currentHealth = wolfData.maxHealth;
-    wolfData.isShowingDamage = false;
-    wolfData.isDead = false;
-    wolfData.deathTime = 0;
-    wolfData.deathAnimationPhase = 0;
-
-    // Hide health bar and damage text
-    this.healthBarSprite.visible = false;
-    this.damageText.visible = false;
-
-    // Hide follow indicator
-    const followIndicator = this.mesh.getObjectByName("followIndicator");
-    if (followIndicator) {
-      followIndicator.visible = false;
-    }
-
-    console.log("A new wolf has appeared!");
+    console.log("Wolf respawned at position:", this.mesh.position);
   }
 
   /**
@@ -526,13 +496,15 @@ export class Wolf {
   }
 
   /**
-   * Apply damage to the wolf
+   * Take damage and update health
    */
   public takeDamage(amount: number, currentTime: number): void {
     const wolfData = this.mesh.userData as WolfUserData;
 
     // Skip if already dead
-    if (wolfData.isDead) return;
+    if (wolfData.isDead) {
+      return;
+    }
 
     // Reduce health
     wolfData.currentHealth = Math.max(0, wolfData.currentHealth - amount);
@@ -574,7 +546,8 @@ export class Wolf {
     wolfData.isShowingDamage = true;
 
     // Check if wolf is dead
-    if (wolfData.currentHealth <= 0 && !wolfData.isDead) {
+    if (wolfData.currentHealth <= 0) {
+      console.log("Wolf health reached zero, triggering death");
       this.die(currentTime);
     }
   }
@@ -583,9 +556,28 @@ export class Wolf {
    * Start death sequence
    */
   private die(currentTime: number): void {
+    console.log("Wolf die method called at time:", currentTime);
+
+    // Validate current time
+    if (!currentTime || currentTime <= 0) {
+      console.error("Invalid current time in die method:", currentTime);
+      currentTime = Date.now(); // Use Date.now() as fallback
+      console.log("Using fallback time:", currentTime);
+    }
+
     const wolfData = this.mesh.userData as WolfUserData;
+
+    // Skip if already dead
+    if (wolfData.isDead) {
+      console.log("Wolf is already dead, skipping die method");
+      return;
+    }
+
     wolfData.isDead = true;
     wolfData.deathTime = currentTime;
+    wolfData.deathAnimationPhase = 0;
+
+    console.log("Set wolf death time to:", wolfData.deathTime);
 
     // Hide health bar and damage text
     this.healthBarSprite.visible = false;
@@ -609,7 +601,9 @@ export class Wolf {
     });
     document.dispatchEvent(goldDropEvent);
 
-    console.log(`Wolf has been defeated! Dropped ${goldAmount} gold.`);
+    console.log(
+      `Wolf has been defeated! Dropped ${goldAmount} gold. Will respawn in 4 seconds.`,
+    );
   }
 
   /**
@@ -624,19 +618,18 @@ export class Wolf {
    * Reset the wolf's position and state
    */
   public reset(): void {
-    // Reset position
-    this.mesh.position.copy(this.initialPosition);
+    console.log("Resetting wolf state");
+
+    // Reset rotation
     this.mesh.rotation.set(0, 0, 0);
 
     // Reset all mesh materials to be fully opaque
     this.mesh.traverse((child) => {
       if (child instanceof THREE.Mesh && child.material) {
-        const material = child.material as THREE.Material;
-        if (material.opacity !== undefined) {
-          material.opacity = 1;
-          material.transparent = false;
-          material.needsUpdate = true;
-        }
+        const material = child.material as THREE.MeshStandardMaterial;
+        material.transparent = false;
+        material.opacity = 1;
+        material.needsUpdate = true;
       }
     });
 
@@ -653,8 +646,12 @@ export class Wolf {
 
     // Reset wolf data
     const wolfData = this.mesh.userData as WolfUserData;
-    wolfData.velocity.set(0, 0, 0);
-    wolfData.targetPosition.copy(this.initialPosition);
+    wolfData.velocity = new THREE.Vector3(0, 0, 0);
+    wolfData.targetPosition = new THREE.Vector3(
+      this.mesh.position.x,
+      0,
+      this.mesh.position.z,
+    );
     wolfData.changeDirectionTime = 0;
     wolfData.isFollowing = false;
     wolfData.currentHealth = wolfData.maxHealth;
@@ -663,14 +660,17 @@ export class Wolf {
     wolfData.deathTime = 0;
     wolfData.deathAnimationPhase = 0;
 
-    // Hide health bar and damage text
+    // Update health bar
+    this.updateHealthBar();
     this.healthBarSprite.visible = false;
     this.damageText.visible = false;
 
-    // Hide follow indicator
+    // Reset follow indicator
     const followIndicator = this.mesh.getObjectByName("followIndicator");
     if (followIndicator) {
       followIndicator.visible = false;
     }
+
+    console.log("Wolf reset complete");
   }
 }

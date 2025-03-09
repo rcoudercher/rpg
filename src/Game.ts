@@ -323,7 +323,8 @@ export class Game {
       this.knight.animate(isMoving);
 
       // Update wolf behavior
-      this.wolf.update(this.knight.mesh.position, currentTime);
+      const validTime = currentTime > 0 ? currentTime : Date.now();
+      this.wolf.update(this.knight.mesh.position, validTime);
 
       // Update gold animations
       this.goldItems.forEach((gold) => gold.update());
@@ -369,8 +370,9 @@ export class Game {
       // Calculate damage based on equipped weapon
       const damage = this.equippedWeapon === "sword" ? 20 : 5; // Sword: 20 damage, Fists: 5 damage
 
-      // Apply damage to wolf
-      this.wolf.takeDamage(damage, Date.now());
+      // Apply damage to wolf with current time
+      const currentTime = Date.now();
+      this.wolf.takeDamage(damage, currentTime);
 
       // Log the damage
       const wolfHealth = (this.wolf.mesh.userData as any).currentHealth;
