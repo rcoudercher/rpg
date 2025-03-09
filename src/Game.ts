@@ -10,6 +10,13 @@ import { UIController } from "./controllers/UIController";
 import { Environment } from "./scenes/Environment";
 import { GameAPI } from "./services/GameAPI";
 
+// Create a global game instance for access from other components
+declare global {
+  interface Window {
+    gameInstance: Game;
+  }
+}
+
 // Define the custom event interface
 interface WolfDeathEvent extends CustomEvent {
   detail: {
@@ -20,7 +27,7 @@ interface WolfDeathEvent extends CustomEvent {
 
 export class Game {
   private scene: THREE.Scene;
-  private camera: THREE.PerspectiveCamera;
+  public camera: THREE.PerspectiveCamera;
   private renderer: THREE.WebGLRenderer;
 
   private knight: Knight;
@@ -55,6 +62,9 @@ export class Game {
   private static readonly STORAGE_KEY_HAS_SWORD = "wow_game_has_sword";
 
   constructor() {
+    // Set global reference to this game instance
+    window.gameInstance = this;
+
     // Initialize Three.js scene
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(

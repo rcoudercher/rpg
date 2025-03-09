@@ -5,8 +5,6 @@ export class Wolf {
   public mesh: THREE.Group;
   private healthBarSprite: THREE.Sprite;
   private healthBarMaterial: THREE.SpriteMaterial;
-  private damageText: THREE.Sprite;
-  private damageTextMaterial: THREE.SpriteMaterial;
   private initialPosition: THREE.Vector3;
   private respawnDelay: number = 8000; // 8 seconds (5 seconds dead + 3 seconds for respawn)
 
@@ -21,37 +19,6 @@ export class Wolf {
     this.healthBarSprite.position.set(0, 2.2, 0);
     this.healthBarSprite.visible = false;
     this.mesh.add(this.healthBarSprite);
-
-    // Create damage text sprite
-    const canvas = document.createElement("canvas");
-    const context = canvas.getContext("2d");
-    canvas.width = 128;
-    canvas.height = 128;
-
-    if (context) {
-      context.font = "Bold 36px Arial";
-      context.fillStyle = "rgba(255, 0, 0, 0.9)";
-      context.strokeStyle = "rgba(0, 0, 0, 0.8)";
-      context.lineWidth = 4;
-      context.textAlign = "center";
-      context.textBaseline = "middle";
-      context.strokeText("-20", 64, 64);
-      context.fillText("-20", 64, 64);
-    }
-
-    const texture = new THREE.CanvasTexture(canvas);
-    this.damageTextMaterial = new THREE.SpriteMaterial({
-      map: texture,
-      transparent: true,
-      depthTest: false,
-      sizeAttenuation: false,
-    });
-
-    this.damageText = new THREE.Sprite(this.damageTextMaterial);
-    this.damageText.scale.set(0.5, 0.5, 0.5);
-    this.damageText.position.set(0, 2.5, 0);
-    this.damageText.visible = false;
-    this.mesh.add(this.damageText);
   }
 
   /**
@@ -334,24 +301,6 @@ export class Wolf {
 
     // Update health bar
     this.updateHealthBar();
-
-    // Update damage text animation
-    if (wolfData.isShowingDamage) {
-      const damageElapsed = currentTime - wolfData.lastDamageTime;
-
-      // Move damage text upward
-      this.damageText.position.y = 2.5 + damageElapsed * 0.002;
-
-      // Fade out damage text
-      const opacity = 1 - damageElapsed / 1000;
-      if (opacity > 0) {
-        this.damageTextMaterial.opacity = opacity;
-      } else {
-        // Hide damage text after animation completes
-        this.damageText.visible = false;
-        wolfData.isShowingDamage = false;
-      }
-    }
   }
 
   /**
@@ -475,41 +424,91 @@ export class Wolf {
     // Update health bar
     this.updateHealthBar();
 
-    // Update damage text
-    const canvas = document.createElement("canvas");
-    const context = canvas.getContext("2d");
-    canvas.width = 128;
-    canvas.height = 128;
-
-    if (context) {
-      context.font = "Bold 36px Arial";
-      context.fillStyle = "rgba(255, 0, 0, 0.9)";
-      context.strokeStyle = "rgba(0, 0, 0, 0.8)";
-      context.lineWidth = 4;
-      context.textAlign = "center";
-      context.textBaseline = "middle";
-      context.strokeText(`-${amount}`, 64, 64);
-      context.fillText(`-${amount}`, 64, 64);
-    }
-
-    const texture = new THREE.CanvasTexture(canvas);
-    this.damageTextMaterial.map = texture;
-    this.damageTextMaterial.needsUpdate = true;
-
-    // Show damage text
-    this.damageText.visible = true;
-    this.damageText.position.y = 2.5;
-    this.damageTextMaterial.opacity = 1;
-
-    // Set damage animation state
-    wolfData.lastDamageTime = currentTime;
-    wolfData.isShowingDamage = true;
+    // Create a floating damage text in the world
+    this.createDamageText(amount);
 
     // Check if wolf is dead
     if (wolfData.currentHealth <= 0) {
       console.log("Wolf health reached zero, triggering death");
       this.die(currentTime);
     }
+  }
+
+  /**
+   * Create a floating damage text
+   */
+  private createDamageText(amount: number): void {
+    // Create a div element for the damage text
+    const damageText = document.createElement("div");
+    damageText.textContent = `-${amount}`;
+    damageText.style.position = "absolute";
+    damageText.style.color = "#FF0000"; // Bright red
+    damageText.style.fontWeight = "bold";
+    damageText.style.fontSize = "48px"; // Even larger text
+    damageText.style.fontFamily = "Arial, sans-serif";
+    damageText.style.textShadow = "3px 3px 5px black"; // Stronger shadow
+    damageText.style.zIndex = "1000";
+    damageText.style.pointerEvents = "none"; // Don't block clicks
+    damageText.style.userSelect = "none"; // Prevent text selection
+    damageText.style.transform = "translate(-50%, -50%)"; // Center the text
+
+    // Add to document
+    document.body.appendChild(damageText);
+
+    // Initial position
+    this.updateDamageTextPosition(damageText, 2);
+
+    // Animate the damage text
+    let opacity = 1;
+    let offsetY = 0; // Offset from the wolf's position
+    let scale = 1.0;
+
+    const animate = () => {
+      // Update position to follow wolf with increasing height
+      offsetY += 0.05; // Gradually move upward relative to wolf
+      this.updateDamageTextPosition(damageText, 2 + offsetY);
+
+      // Scale up slightly
+      scale += 0.01;
+      damageText.style.transform = `translate(-50%, -50%) scale(${scale})`;
+
+      // Fade out
+      opacity -= 0.015;
+      damageText.style.opacity = opacity.toString();
+
+      if (opacity > 0) {
+        requestAnimationFrame(animate);
+      } else {
+        // Remove from DOM when animation is complete
+        document.body.removeChild(damageText);
+      }
+    };
+
+    // Start animation
+    requestAnimationFrame(animate);
+  }
+
+  /**
+   * Update the position of a damage text element to follow the wolf
+   */
+  private updateDamageTextPosition(
+    element: HTMLElement,
+    heightOffset: number,
+  ): void {
+    // Get wolf position in screen coordinates
+    const worldPos = this.mesh.position.clone();
+    worldPos.y += heightOffset; // Position above the wolf
+
+    // Convert to screen coordinates using the camera
+    const tempV = worldPos.clone();
+    tempV.project(window.gameInstance.camera);
+
+    const x = (tempV.x * 0.5 + 0.5) * window.innerWidth;
+    const y = (tempV.y * -0.5 + 0.5) * window.innerHeight;
+
+    // Position the damage text
+    element.style.left = `${x}px`;
+    element.style.top = `${y}px`;
   }
 
   /**
@@ -539,9 +538,8 @@ export class Wolf {
 
     console.log("Set wolf death time to:", wolfData.deathTime);
 
-    // Hide health bar and damage text
+    // Hide health bar
     this.healthBarSprite.visible = false;
-    this.damageText.visible = false;
 
     // Generate a random amount of gold between 1 and 10
     const goldAmount = Math.floor(Math.random() * 10) + 1;
@@ -617,7 +615,6 @@ export class Wolf {
     // Update health bar
     this.updateHealthBar();
     this.healthBarSprite.visible = false;
-    this.damageText.visible = false;
 
     console.log("Wolf reset complete");
   }

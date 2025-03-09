@@ -59,6 +59,7 @@ export interface WolfUserData {
   isDead: boolean;
   deathTime: number;
   deathAnimationPhase: number;
+  damageTextMesh?: THREE.Mesh | null;
 }
 
 export interface GoldUserData {
